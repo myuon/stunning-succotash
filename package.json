@@ -1,0 +1,14 @@
+{
+  "name": "webgl-path-tracer",
+  "type": "module",
+  "devDependencies": {
+    "bun-types": "latest",
+    "parcel": "^2.10.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "dev": "bunx parcel index.html"
+  }
+}
