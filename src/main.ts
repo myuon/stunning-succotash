@@ -1,7 +1,6 @@
 import shaderVertSource from "./glsl/shader.vert?raw";
 import shaderFragSource from "./glsl/shader.frag?raw";
 import accumRendererFragSource from "./glsl/accumRenderer.frag?raw";
-import { mat4 } from "gl-matrix";
 
 const compileShader = (
   gl: WebGL2RenderingContext,
@@ -111,76 +110,6 @@ const setAttribute = (
   });
 };
 
-const createFramebufferMrt = (
-  gl: WebGL2RenderingContext,
-  width: number,
-  height: number,
-  count: number
-) => {
-  const frameBuffer = gl.createFramebuffer();
-  if (!frameBuffer) {
-    console.error("Failed to create frameBuffer");
-    return;
-  }
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
-
-  const textures = [];
-  for (let i = 0; i < count; i++) {
-    const tex = gl.createTexture();
-    if (!tex) {
-      console.error("Failed to create texture");
-      return;
-    }
-
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      width,
-      height,
-      0,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      null
-    );
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.framebufferTexture2D(
-      gl.FRAMEBUFFER,
-      gl.COLOR_ATTACHMENT0 + i,
-      gl.TEXTURE_2D,
-      tex,
-      0
-    );
-
-    textures.push(tex);
-  }
-
-  const depthRenderBuffer = gl.createRenderbuffer();
-  if (!depthRenderBuffer) {
-    console.error("Failed to create renderbuffer");
-    return;
-  }
-
-  gl.bindRenderbuffer(gl.RENDERBUFFER, depthRenderBuffer);
-  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
-  gl.framebufferRenderbuffer(
-    gl.FRAMEBUFFER,
-    gl.DEPTH_ATTACHMENT,
-    gl.RENDERBUFFER,
-    depthRenderBuffer
-  );
-  gl.bindTexture(gl.TEXTURE_2D, null);
-  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-  return { frameBuffer, renderBuffer: depthRenderBuffer, textures };
-};
-
 const main = () => {
   const canvas = document.querySelector("#glcanvas")! as HTMLCanvasElement;
   const gl = canvas.getContext("webgl2");
@@ -189,7 +118,7 @@ const main = () => {
     return;
   }
 
-  gl.getExtension("EXT_color_buffer_float")!;
+  console.log(gl.getExtension("EXT_color_buffer_float")!);
 
   const program = createProgramFromSource(
     gl,
@@ -213,59 +142,47 @@ const main = () => {
   const vbo = createVbo(
     gl,
     [
-      [0.0, 1.0, 0.0],
-      [1.0, 0.0, 0.0],
-      [-1.0, 0.0, 0.0],
-      [0.0, -1.0, 0.0],
+      [-1.0, 1.0, 0.0],
+      [1.0, 1.0, 0.0],
+      [-1.0, -1.0, 0.0],
+      [1.0, -1.0, 0.0],
     ].flat()
   );
   if (!vbo) return;
 
   setAttribute(gl, [vbo], [gl.getAttribLocation(program, "position")], [3]);
+  setAttribute(
+    gl,
+    [vbo],
+    [gl.getAttribLocation(accumProgram, "position")],
+    [3]
+  );
 
   const ibo = createIbo(gl, indices);
   if (!ibo) return;
 
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
 
-  const uniLocation = gl.getUniformLocation(program, "mvpMatrix");
+  const [accumTexture] = new Array(1).map(() => {
+    const tex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGB,
+      canvas.width,
+      canvas.height,
+      0,
+      gl.RGB,
+      gl.UNSIGNED_BYTE,
+      null
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.bindTexture(gl.TEXTURE_2D, null);
 
-  const mMatrix = mat4.identity(mat4.create());
-  const vMatrix = mat4.identity(mat4.create());
-  const pMatrix = mat4.identity(mat4.create());
-  const tmpMatrix = mat4.identity(mat4.create());
-  const mvpMatrix = mat4.identity(mat4.create());
-
-  mat4.lookAt(vMatrix, [0.0, 0.0, 3.0], [0, 0, 0], [0, 1, 0]);
-  mat4.perspective(pMatrix, 45, canvas.width / canvas.height, 0.1, 100);
-  mat4.multiply(tmpMatrix, pMatrix, vMatrix);
-
-  const bufferSize = 1024;
-
-  const accumTexture = gl.createTexture();
-  if (!accumTexture) {
-    console.error("Failed to create texture");
-    return;
-  }
-  gl.bindTexture(gl.TEXTURE_2D, accumTexture);
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RGBA32F,
-    bufferSize,
-    bufferSize,
-    0,
-    gl.RGBA,
-    gl.FLOAT,
-    null
-  );
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texParameteri(
-    gl.TEXTURE_2D,
-    gl.TEXTURE_MIN_FILTER,
-    gl.LINEAR_MIPMAP_NEAREST
-  );
-  gl.bindTexture(gl.TEXTURE_2D, null);
+    return tex;
+  });
 
   const stateTexture = gl.createTexture();
   if (!stateTexture) {
@@ -274,22 +191,27 @@ const main = () => {
   }
   gl.bindTexture(gl.TEXTURE_2D, stateTexture);
   gl.texImage2D(
+    // gl.TEXTURE_2D,
+    // 0,
+    // gl.R32UI,
+    // bufferSize,
+    // bufferSize,
+    // 0,
+    // gl.RED_INTEGER,
+    // gl.UNSIGNED_INT,
+    // null
     gl.TEXTURE_2D,
     0,
-    gl.R32UI,
-    bufferSize,
-    bufferSize,
+    gl.RGB,
+    canvas.width,
+    canvas.height,
     0,
-    gl.RED_INTEGER,
-    gl.UNSIGNED_INT,
+    gl.RGB,
+    gl.UNSIGNED_BYTE,
     null
   );
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texParameteri(
-    gl.TEXTURE_2D,
-    gl.TEXTURE_MIN_FILTER,
-    gl.LINEAR_MIPMAP_NEAREST
-  );
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.bindTexture(gl.TEXTURE_2D, null);
 
   const accumFbo = gl.createFramebuffer();
@@ -305,7 +227,6 @@ const main = () => {
     accumTexture,
     0
   );
-  gl.clearBufferfv(gl.COLOR, 0, [0.0, 0.0, 0.0, 1.0]);
   gl.framebufferTexture2D(
     gl.FRAMEBUFFER,
     gl.COLOR_ATTACHMENT1,
@@ -317,16 +238,16 @@ const main = () => {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
   gl.useProgram(program);
+  gl.uniform1i(gl.getUniformLocation(program, "accumTexture"), 0);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, accumTexture);
-  gl.uniform1i(gl.getUniformLocation(program, "accumTexture"), 0);
-  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.useProgram(null);
 
   gl.useProgram(accumProgram);
+  gl.uniform1i(gl.getUniformLocation(accumProgram, "accumTexture"), 0);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, accumTexture);
-  gl.uniform1i(gl.getUniformLocation(accumProgram, "accumTexture"), 0);
-  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.useProgram(null);
 
   let count = 0;
 
@@ -334,33 +255,26 @@ const main = () => {
     // render to framebuffer -----------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, accumFbo);
 
+    gl.useProgram(program);
+
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clearDepth(1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.viewport(0, 0, bufferSize, bufferSize);
 
-    gl.useProgram(program);
-
-    const rad = (count % 360) * (Math.PI / 180);
-
-    mat4.identity(mMatrix);
-    mat4.rotate(mMatrix, mMatrix, rad, [0, 1, 0]);
-    mat4.multiply(mvpMatrix, tmpMatrix, mMatrix);
-    gl.uniformMatrix4fv(uniLocation, false, mvpMatrix);
     gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+
+    gl.useProgram(null);
 
     // render to canvas ----------------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
+    gl.useProgram(accumProgram);
+    gl.uniform1f(gl.getUniformLocation(accumProgram, "sppInv"), 1.0 / count);
+
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clearDepth(1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    gl.useProgram(accumProgram);
-
-    gl.viewport(0, 0, canvas.width / 2, canvas.height);
-    gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
-    gl.viewport(canvas.width / 2, 0, canvas.width / 2, canvas.height);
     gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
 
     gl.useProgram(null);

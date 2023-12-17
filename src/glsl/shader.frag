@@ -3,10 +3,13 @@ precision highp float;
 
 uniform sampler2D accumTexture;
 
-out vec3 fragColor;
+in vec2 texCoord;
+layout (location = 0) out vec3 fragColor;
+layout (location = 1) out vec3 state;
 
 void main(void){
-    // vec3 color = texture(accumTexture, gl_FragCoord.xy).xyz * 1.0;
-    vec3 color = vec3(0.0);
-    fragColor = color + vec3(gl_FragCoord.x, gl_FragCoord.y, 0.1);
+    vec3 color = texture(accumTexture, texCoord).xyz;
+    fragColor = color + vec3(0.5, 0.1, 0.1);
+
+    state = vec3(1.0);
 }
