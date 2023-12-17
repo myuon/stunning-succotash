@@ -1,5 +1,7 @@
 import shaderVertSource from "./glsl/shader.vert?raw";
 import shaderFragSource from "./glsl/shader.frag?raw";
+import accumRendererVertSource from "./glsl/accumRenderer.vert?raw";
+import accumRendererFragSource from "./glsl/accumRenderer.frag?raw";
 import { mat4 } from "gl-matrix";
 
 const compileShader = (
@@ -36,6 +38,32 @@ const createProgram = (
   } else {
     console.error(gl.getProgramInfoLog(program));
   }
+};
+
+const createProgramFromSource = (
+  gl: WebGL2RenderingContext,
+  vertSource: string,
+  fragSource: string
+) => {
+  const vshader = gl.createShader(gl.VERTEX_SHADER);
+  if (!vshader) {
+    console.error("Failed to create vshader");
+    return;
+  }
+  const fshader = gl.createShader(gl.FRAGMENT_SHADER);
+  if (!fshader) {
+    console.error("Failed to create fshader");
+    return;
+  }
+
+  compileShader(gl, vshader, vertSource);
+  compileShader(gl, fshader, fragSource);
+  if (!vshader || !fshader) return;
+
+  const program = createProgram(gl, vshader, fshader);
+  if (!program) return;
+
+  return program;
 };
 
 const createVbo = (gl: WebGL2RenderingContext, data: number[]) => {
@@ -79,6 +107,76 @@ const setAttribute = (
   });
 };
 
+const createFramebufferMrt = (
+  gl: WebGL2RenderingContext,
+  width: number,
+  height: number,
+  count: number
+) => {
+  const frameBuffer = gl.createFramebuffer();
+  if (!frameBuffer) {
+    console.error("Failed to create frameBuffer");
+    return;
+  }
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+
+  const textures = [];
+  for (let i = 0; i < count; i++) {
+    const tex = gl.createTexture();
+    if (!tex) {
+      console.error("Failed to create texture");
+      return;
+    }
+
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      width,
+      height,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      null
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0 + i,
+      gl.TEXTURE_2D,
+      tex,
+      0
+    );
+
+    textures.push(tex);
+  }
+
+  const depthRenderBuffer = gl.createRenderbuffer();
+  if (!depthRenderBuffer) {
+    console.error("Failed to create renderbuffer");
+    return;
+  }
+
+  gl.bindRenderbuffer(gl.RENDERBUFFER, depthRenderBuffer);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+  gl.framebufferRenderbuffer(
+    gl.FRAMEBUFFER,
+    gl.DEPTH_ATTACHMENT,
+    gl.RENDERBUFFER,
+    depthRenderBuffer
+  );
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  return { frameBuffer, renderBuffer: depthRenderBuffer, textures };
+};
+
 const main = () => {
   const canvas = document.querySelector("#glcanvas")! as HTMLCanvasElement;
   const gl = canvas.getContext("webgl2");
@@ -87,23 +185,19 @@ const main = () => {
     return;
   }
 
-  const vshader = gl.createShader(gl.VERTEX_SHADER);
-  if (!vshader) {
-    console.error("Failed to create vshader");
-    return;
-  }
-  const fshader = gl.createShader(gl.FRAGMENT_SHADER);
-  if (!fshader) {
-    console.error("Failed to create fshader");
-    return;
-  }
-
-  compileShader(gl, vshader, shaderVertSource);
-  compileShader(gl, fshader, shaderFragSource);
-  if (!vshader || !fshader) return;
-
-  const program = createProgram(gl, vshader, fshader);
+  const program = createProgramFromSource(
+    gl,
+    shaderVertSource,
+    shaderFragSource
+  );
   if (!program) return;
+
+  const accumProgram = createProgramFromSource(
+    gl,
+    accumRendererVertSource,
+    accumRendererFragSource
+  );
+  if (!accumProgram) return;
 
   const locations = [
     gl.getAttribLocation(program, "position"),
@@ -151,12 +245,31 @@ const main = () => {
   mat4.perspective(pMatrix, 45, canvas.width / canvas.height, 0.1, 100);
   mat4.multiply(tmpMatrix, pMatrix, vMatrix);
 
+  const bufferSize = 1024;
+
+  const fbuffer = createFramebufferMrt(gl, bufferSize, bufferSize, 2);
+  if (!fbuffer) return;
+
+  const bufferList = [gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1];
+  gl.drawBuffers(bufferList);
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, fbuffer.textures[0]);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, fbuffer.textures[1]);
+
   let count = 0;
 
   const loop = () => {
+    // render to framebuffer -----------------------------
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbuffer.frameBuffer);
+
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clearDepth(1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.viewport(0, 0, bufferSize, bufferSize);
+
+    gl.useProgram(program);
 
     const rad = (count % 360) * (Math.PI / 180);
 
@@ -164,6 +277,20 @@ const main = () => {
     mat4.rotate(mMatrix, mMatrix, rad, [0, 1, 0]);
     mat4.multiply(mvpMatrix, tmpMatrix, mMatrix);
     gl.uniformMatrix4fv(uniLocation, false, mvpMatrix);
+    gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+
+    // render to canvas ----------------------------------
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clearDepth(1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    gl.useProgram(accumProgram);
+
+    gl.viewport(0, 0, canvas.width / 2, canvas.height);
+    gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+    gl.viewport(canvas.width / 2, 0, canvas.width / 2, canvas.height);
     gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
 
     gl.flush();

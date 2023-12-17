@@ -1,0 +1,12 @@
+#version 300 es
+precision highp float;
+
+uniform sampler2D texture2dSampler;
+
+in vec2 vTexCoord;
+
+out vec4 outColor;
+
+void main(){
+    outColor = texture(texture2dSampler, vTexCoord);
+}
