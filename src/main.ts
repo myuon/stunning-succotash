@@ -52,6 +52,33 @@ const createVbo = (gl: WebGL2RenderingContext, data: number[]) => {
   return vbo;
 };
 
+const createIbo = (gl: WebGL2RenderingContext, data: number[]) => {
+  const ibo = gl.createBuffer();
+  if (!ibo) {
+    console.error("Failed to create buffer");
+    return;
+  }
+
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(data), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+
+  return ibo;
+};
+
+const setAttribute = (
+  gl: WebGL2RenderingContext,
+  vbo: WebGLBuffer[],
+  locations: number[],
+  stride: number[]
+) => {
+  vbo.forEach((v, i) => {
+    gl.bindBuffer(gl.ARRAY_BUFFER, v);
+    gl.enableVertexAttribArray(locations[i]);
+    gl.vertexAttribPointer(locations[i], stride[i], gl.FLOAT, false, 0, 0);
+  });
+};
+
 const main = () => {
   const canvas = document.querySelector("#glcanvas")! as HTMLCanvasElement;
   const gl = canvas.getContext("webgl2");
@@ -59,10 +86,6 @@ const main = () => {
     console.error("Failed to get WebGL context");
     return;
   }
-
-  gl.clearColor(0.0, 0.0, 0.0, 1.0);
-  gl.clearDepth(1.0);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   const vshader = gl.createShader(gl.VERTEX_SHADER);
   if (!vshader) {
@@ -82,30 +105,74 @@ const main = () => {
   const program = createProgram(gl, vshader, fshader);
   if (!program) return;
 
-  const location = gl.getAttribLocation(program, "position");
-  const attribStride = 3;
-  const vertexPosition = [0.0, 1.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0];
+  const locations = [
+    gl.getAttribLocation(program, "position"),
+    gl.getAttribLocation(program, "color"),
+  ];
+  const stride = [3, 4];
+  const position = [
+    [0.0, 1.0, 0.0],
+    [1.0, 0.0, 0.0],
+    [-1.0, 0.0, 0.0],
+    [0.0, -1.0, 0.0],
+  ].flat();
+  const color = [
+    [1.0, 0.0, 0.0, 1.0],
+    [0.0, 1.0, 0.0, 1.0],
+    [0.0, 0.0, 1.0, 1.0],
+    [1.0, 1.0, 1.0, 1.0],
+  ].flat();
+  const indices = [
+    [0, 1, 2],
+    [1, 2, 3],
+  ].flat();
 
-  const vbo = createVbo(gl, vertexPosition);
+  const vbo = createVbo(gl, position);
   if (!vbo) return;
-  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-  gl.enableVertexAttribArray(location);
-  gl.vertexAttribPointer(location, attribStride, gl.FLOAT, false, 0, 0);
+  const colorVbo = createVbo(gl, color);
+  if (!colorVbo) return;
+
+  setAttribute(gl, [vbo, colorVbo], locations, stride);
+
+  const ibo = createIbo(gl, indices);
+  if (!ibo) return;
+
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+
+  const uniLocation = gl.getUniformLocation(program, "mvpMatrix");
 
   const mMatrix = mat4.identity(mat4.create());
   const vMatrix = mat4.identity(mat4.create());
   const pMatrix = mat4.identity(mat4.create());
+  const tmpMatrix = mat4.identity(mat4.create());
   const mvpMatrix = mat4.identity(mat4.create());
 
-  mat4.lookAt(vMatrix, [0.0, 1.0, 3.0], [0, 0, 0], [0, 1, 0]);
+  mat4.lookAt(vMatrix, [0.0, 0.0, 3.0], [0, 0, 0], [0, 1, 0]);
   mat4.perspective(pMatrix, 45, canvas.width / canvas.height, 0.1, 100);
-  mat4.multiply(mvpMatrix, pMatrix, vMatrix);
-  mat4.multiply(mvpMatrix, mvpMatrix, mMatrix);
+  mat4.multiply(tmpMatrix, pMatrix, vMatrix);
 
-  const uniLocation = gl.getUniformLocation(program, "mvpMatrix");
-  gl.uniformMatrix4fv(uniLocation, false, mvpMatrix);
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
-  gl.flush();
+  let count = 0;
+
+  const loop = () => {
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clearDepth(1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    const rad = (count % 360) * (Math.PI / 180);
+
+    mat4.identity(mMatrix);
+    mat4.rotate(mMatrix, mMatrix, rad, [0, 1, 0]);
+    mat4.multiply(mvpMatrix, tmpMatrix, mMatrix);
+    gl.uniformMatrix4fv(uniLocation, false, mvpMatrix);
+    gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+
+    gl.flush();
+
+    count++;
+
+    requestAnimationFrame(loop);
+  };
+  loop();
 };
 
 main();
