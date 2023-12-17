@@ -189,6 +189,8 @@ const main = () => {
     return;
   }
 
+  gl.getExtension("EXT_color_buffer_float")!;
+
   const program = createProgramFromSource(
     gl,
     shaderVertSource,
@@ -240,27 +242,97 @@ const main = () => {
 
   const bufferSize = 1024;
 
-  const fbuffer = createFramebufferMrt(gl, bufferSize, bufferSize, 2);
-  if (!fbuffer) return;
+  const accumTexture = gl.createTexture();
+  if (!accumTexture) {
+    console.error("Failed to create texture");
+    return;
+  }
+  gl.bindTexture(gl.TEXTURE_2D, accumTexture);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA32F,
+    bufferSize,
+    bufferSize,
+    0,
+    gl.RGBA,
+    gl.FLOAT,
+    null
+  );
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(
+    gl.TEXTURE_2D,
+    gl.TEXTURE_MIN_FILTER,
+    gl.LINEAR_MIPMAP_NEAREST
+  );
+  gl.bindTexture(gl.TEXTURE_2D, null);
 
-  // gl.bindFramebuffer(gl.FRAMEBUFFER, fbuffer.frameBuffer);
-  // gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+  const stateTexture = gl.createTexture();
+  if (!stateTexture) {
+    console.error("Failed to create texture");
+    return;
+  }
+  gl.bindTexture(gl.TEXTURE_2D, stateTexture);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.R32UI,
+    bufferSize,
+    bufferSize,
+    0,
+    gl.RED_INTEGER,
+    gl.UNSIGNED_INT,
+    null
+  );
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(
+    gl.TEXTURE_2D,
+    gl.TEXTURE_MIN_FILTER,
+    gl.LINEAR_MIPMAP_NEAREST
+  );
+  gl.bindTexture(gl.TEXTURE_2D, null);
 
-  // gl.useProgram(program);
-  // gl.activeTexture(gl.TEXTURE0);
-  // gl.bindTexture(gl.TEXTURE_2D, fbuffer.textures[0]);
-  // gl.uniform1i(gl.getUniformLocation(program, "accumTexture"), 0);
+  const accumFbo = gl.createFramebuffer();
+  if (!accumFbo) {
+    console.error("Failed to create frameBuffer");
+    return;
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, accumFbo);
+  gl.framebufferTexture2D(
+    gl.FRAMEBUFFER,
+    gl.COLOR_ATTACHMENT0,
+    gl.TEXTURE_2D,
+    accumTexture,
+    0
+  );
+  gl.clearBufferfv(gl.COLOR, 0, [0.0, 0.0, 0.0, 1.0]);
+  gl.framebufferTexture2D(
+    gl.FRAMEBUFFER,
+    gl.COLOR_ATTACHMENT1,
+    gl.TEXTURE_2D,
+    stateTexture,
+    0
+  );
+  gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-  // gl.useProgram(accumProgram);
-  // gl.activeTexture(gl.TEXTURE0);
-  // gl.bindTexture(gl.TEXTURE_2D, fbuffer.textures[0]);
-  // gl.uniform1i(gl.getUniformLocation(accumProgram, "accumTexture"), 0);
+  gl.useProgram(program);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, accumTexture);
+  gl.uniform1i(gl.getUniformLocation(program, "accumTexture"), 0);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+
+  gl.useProgram(accumProgram);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, accumTexture);
+  gl.uniform1i(gl.getUniformLocation(accumProgram, "accumTexture"), 0);
+  gl.bindTexture(gl.TEXTURE_2D, null);
 
   let count = 0;
 
   const loop = () => {
     // render to framebuffer -----------------------------
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fbuffer.frameBuffer);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, accumFbo);
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clearDepth(1.0);
@@ -290,6 +362,8 @@ const main = () => {
     gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
     gl.viewport(canvas.width / 2, 0, canvas.width / 2, canvas.height);
     gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+
+    gl.useProgram(null);
 
     gl.flush();
 
