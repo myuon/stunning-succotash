@@ -1,6 +1,5 @@
 import shaderVertSource from "./glsl/shader.vert?raw";
 import shaderFragSource from "./glsl/shader.frag?raw";
-import accumRendererVertSource from "./glsl/accumRenderer.vert?raw";
 import accumRendererFragSource from "./glsl/accumRenderer.frag?raw";
 import { mat4 } from "gl-matrix";
 
@@ -100,6 +99,11 @@ const setAttribute = (
   locations: number[],
   stride: number[]
 ) => {
+  if (vbo.length !== locations.length || vbo.length !== stride.length) {
+    console.error("Failed to set attribute");
+    return;
+  }
+
   vbo.forEach((v, i) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, v);
     gl.enableVertexAttribArray(locations[i]);
@@ -194,39 +198,28 @@ const main = () => {
 
   const accumProgram = createProgramFromSource(
     gl,
-    accumRendererVertSource,
+    shaderVertSource,
     accumRendererFragSource
   );
   if (!accumProgram) return;
 
-  const locations = [
-    gl.getAttribLocation(program, "position"),
-    gl.getAttribLocation(program, "color"),
-  ];
-  const stride = [3, 4];
-  const position = [
-    [0.0, 1.0, 0.0],
-    [1.0, 0.0, 0.0],
-    [-1.0, 0.0, 0.0],
-    [0.0, -1.0, 0.0],
-  ].flat();
-  const color = [
-    [1.0, 0.0, 0.0, 1.0],
-    [0.0, 1.0, 0.0, 1.0],
-    [0.0, 0.0, 1.0, 1.0],
-    [1.0, 1.0, 1.0, 1.0],
-  ].flat();
   const indices = [
     [0, 1, 2],
     [1, 2, 3],
   ].flat();
 
-  const vbo = createVbo(gl, position);
+  const vbo = createVbo(
+    gl,
+    [
+      [0.0, 1.0, 0.0],
+      [1.0, 0.0, 0.0],
+      [-1.0, 0.0, 0.0],
+      [0.0, -1.0, 0.0],
+    ].flat()
+  );
   if (!vbo) return;
-  const colorVbo = createVbo(gl, color);
-  if (!colorVbo) return;
 
-  setAttribute(gl, [vbo, colorVbo], locations, stride);
+  setAttribute(gl, [vbo], [gl.getAttribLocation(program, "position")], [3]);
 
   const ibo = createIbo(gl, indices);
   if (!ibo) return;
@@ -250,13 +243,18 @@ const main = () => {
   const fbuffer = createFramebufferMrt(gl, bufferSize, bufferSize, 2);
   if (!fbuffer) return;
 
-  const bufferList = [gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1];
-  gl.drawBuffers(bufferList);
+  // gl.bindFramebuffer(gl.FRAMEBUFFER, fbuffer.frameBuffer);
+  // gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
 
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, fbuffer.textures[0]);
-  gl.activeTexture(gl.TEXTURE1);
-  gl.bindTexture(gl.TEXTURE_2D, fbuffer.textures[1]);
+  // gl.useProgram(program);
+  // gl.activeTexture(gl.TEXTURE0);
+  // gl.bindTexture(gl.TEXTURE_2D, fbuffer.textures[0]);
+  // gl.uniform1i(gl.getUniformLocation(program, "accumTexture"), 0);
+
+  // gl.useProgram(accumProgram);
+  // gl.activeTexture(gl.TEXTURE0);
+  // gl.bindTexture(gl.TEXTURE_2D, fbuffer.textures[0]);
+  // gl.uniform1i(gl.getUniformLocation(accumProgram, "accumTexture"), 0);
 
   let count = 0;
 
