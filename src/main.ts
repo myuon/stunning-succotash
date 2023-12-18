@@ -100,7 +100,7 @@ const createVao = (
 
     gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
     gl.enableVertexAttribArray(attrLocations[i]);
-    gl.vertexAttribPointer(attrLocations[i], 3, gl.FLOAT, false, stides[i], 0);
+    gl.vertexAttribPointer(attrLocations[i], stides[i], gl.FLOAT, false, 0, 0);
   });
   if (iboData) {
     const ibo = gl.createBuffer();
@@ -186,7 +186,7 @@ void main() {
       ].flat(),
     ],
     [programLocations.position],
-    [3 * 4],
+    [3],
     [
       [0, 1, 2],
       [1, 2, 3],
