@@ -133,32 +133,8 @@ const main = () => {
 
   const program = createProgramFromSource(
     gl,
-    `#version 300 es
-
-in vec3 position;
-in vec2 a_texcoord;
-
-out vec2 v_texcoord;
-
-void main() {
-  gl_Position = vec4(position, 1.0);
-  v_texcoord = a_texcoord;
-}
-`,
-    `#version 300 es
-
-precision highp float;
-
-in vec2 v_texcoord;
-
-uniform sampler2D u_texture;
-
-out vec4 outColor;
-
-void main() {
-  outColor = texture(u_texture, v_texcoord) + vec4(1.0, 1.0, 1.0, 0.5);
-}
-`
+    shaderVertSource,
+    shaderFragSource
   );
   if (!program) return;
 
@@ -166,14 +142,9 @@ void main() {
     position: gl.getAttribLocation(program, "position"),
     texcoord: gl.getAttribLocation(program, "a_texcoord"),
     texture: gl.getUniformLocation(program, "u_texture"),
+    delta: gl.getUniformLocation(program, "delta"),
+    resolution: gl.getUniformLocation(program, "resolution"),
   };
-
-  const accumProgram = createProgramFromSource(
-    gl,
-    shaderVertSource,
-    accumRendererFragSource
-  );
-  if (!accumProgram) return;
 
   const vao = createVao(
     gl,
@@ -237,7 +208,7 @@ void main() {
     0
   );
 
-  let count = 0;
+  let delta = 0;
 
   const loop = () => {
     // render to framebuffer -----------------------------
@@ -253,14 +224,15 @@ void main() {
       gl.useProgram(program);
       gl.bindVertexArray(vao);
       gl.uniform1i(programLocations.texture, 0);
+      gl.uniform1f(programLocations.delta, delta);
+      gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
       gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
     }
 
     // render to canvas ----------------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.bindTexture(gl.TEXTURE_2D, targetTexture);
-    // gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.viewport(100, 100, 200, 200);
+    gl.viewport(0, 0, canvas.width, canvas.height);
 
     gl.clearColor(1.0, 0.0, 0.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -270,13 +242,15 @@ void main() {
       gl.useProgram(program);
       gl.bindVertexArray(vao);
       gl.uniform1i(programLocations.texture, 0);
+      gl.uniform1f(programLocations.delta, delta);
+      gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
       gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
     }
 
     // tick ----------------------------------------------
     gl.flush();
 
-    count++;
+    delta++;
 
     requestAnimationFrame(loop);
   };
