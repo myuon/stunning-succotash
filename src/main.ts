@@ -184,11 +184,6 @@ void main() {
   );
   if (!accumProgram) return;
 
-  const indices = [
-    [0, 1, 2],
-    [1, 2, 3],
-  ].flat();
-
   const vao = createVao(
     gl,
     [
@@ -204,7 +199,10 @@ void main() {
     ],
     [programLocations.position],
     [3 * 4],
-    indices
+    [
+      [0, 1, 2],
+      [1, 2, 3],
+    ].flat()
   );
   if (!vao) {
     console.error("Failed to create vertexArray");
@@ -220,10 +218,6 @@ void main() {
   gl.enableVertexAttribArray(programLocations.texcoord);
   gl.vertexAttribPointer(programLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
   gl.bindVertexArray(null);
-
-  const ibo = createIbo(gl, indices);
-  if (!ibo) return;
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
 
   const [texture, targetTexture] = new Array(2).map(() => {
     const tex = gl.createTexture()!;
@@ -276,7 +270,7 @@ void main() {
       gl.useProgram(program);
       gl.bindVertexArray(vao);
       gl.uniform1i(programLocations.texture, 0);
-      gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+      gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
     }
 
     // render to canvas ----------------------------------
@@ -293,7 +287,7 @@ void main() {
       gl.useProgram(program);
       gl.bindVertexArray(vao);
       gl.uniform1i(programLocations.texture, 0);
-      gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+      gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
     }
 
     // tick ----------------------------------------------
