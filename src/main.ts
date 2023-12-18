@@ -78,23 +78,9 @@ const createVbo = (gl: WebGL2RenderingContext, data: number[]) => {
   return vbo;
 };
 
-const createIbo = (gl: WebGL2RenderingContext, data: number[]) => {
-  const ibo = gl.createBuffer();
-  if (!ibo) {
-    console.error("Failed to create buffer");
-    return;
-  }
-
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(data), gl.STATIC_DRAW);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
-
-  return ibo;
-};
-
 const createVao = (
   gl: WebGL2RenderingContext,
-  vboArray: WebGLBuffer[],
+  vboDataArray: number[][],
   attrLocations: number[],
   stides: number[],
   iboData: number[]
@@ -106,7 +92,12 @@ const createVao = (
   }
   gl.bindVertexArray(vao);
 
-  vboArray.forEach((vbo, i) => {
+  vboDataArray.forEach((vboData, i) => {
+    const vbo = createVbo(gl, vboData);
+    if (!vbo) {
+      throw new Error("Failed to create vbo");
+    }
+
     gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
     gl.enableVertexAttribArray(attrLocations[i]);
     gl.vertexAttribPointer(attrLocations[i], 3, gl.FLOAT, false, stides[i], 0);
@@ -187,15 +178,12 @@ void main() {
   const vao = createVao(
     gl,
     [
-      createVbo(
-        gl,
-        [
-          [-1.0, 1.0, 0.0],
-          [1.0, 1.0, 0.0],
-          [-1.0, -1.0, 0.0],
-          [1.0, -1.0, 0.0],
-        ].flat()
-      )!,
+      [
+        [-1.0, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+      ].flat(),
     ],
     [programLocations.position],
     [3 * 4],
@@ -259,8 +247,7 @@ void main() {
     // render to framebuffer -----------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    // gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.viewport(100, 100, 200, 200);
+    gl.viewport(0, 0, canvas.width, canvas.height);
 
     gl.clearColor(0.0, 0.0, 1.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
