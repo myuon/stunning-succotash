@@ -224,7 +224,7 @@ const main = () => {
       gl.useProgram(program);
       gl.bindVertexArray(vao);
       gl.uniform1i(programLocations.texture, 0);
-      gl.uniform1f(programLocations.delta, delta);
+      gl.uniform1i(programLocations.delta, delta);
       gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
       gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
     }
@@ -242,7 +242,7 @@ const main = () => {
       gl.useProgram(program);
       gl.bindVertexArray(vao);
       gl.uniform1i(programLocations.texture, 0);
-      gl.uniform1f(programLocations.delta, delta);
+      gl.uniform1i(programLocations.delta, delta);
       gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
       gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
     }

@@ -137,7 +137,6 @@ void main(void){
     vec3 cDir = vec3(0.0,  0.0, -1.0);
     vec3 cUp  = vec3(0.0,  1.0,  0.0);
     vec3 cSide = cross(cDir, cUp);
-    float targetDepth = 1.0;
     
     int count = 0;
     int spp = 8;
