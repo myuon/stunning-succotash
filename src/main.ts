@@ -169,11 +169,11 @@ const main = () => {
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.RGB,
+      gl.RGBA,
       canvas.width,
       canvas.height,
       0,
-      gl.RGB,
+      gl.RGBA,
       gl.UNSIGNED_BYTE,
       null
     );
@@ -202,11 +202,11 @@ const main = () => {
     // null
     gl.TEXTURE_2D,
     0,
-    gl.RGB,
+    gl.RGBA,
     canvas.width,
     canvas.height,
     0,
-    gl.RGB,
+    gl.RGBA,
     gl.UNSIGNED_BYTE,
     null
   );
@@ -254,6 +254,7 @@ const main = () => {
   const loop = () => {
     // render to framebuffer -----------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, accumFbo);
+    gl.viewport(0, 0, canvas.width, canvas.height);
 
     gl.useProgram(program);
 

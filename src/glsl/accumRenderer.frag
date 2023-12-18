@@ -9,5 +9,5 @@ out vec4 fragColor;
 
 void main(){
     vec3 color = texture(accumTexture, texCoord).xyz * sppInv;
-    fragColor = vec4(0.1, 0.1, 0.5, 1.0) + vec4(color, 1.0);
+    fragColor = vec4(texCoord, 0.5, 1.0) + vec4(color, 1.0);
 }
