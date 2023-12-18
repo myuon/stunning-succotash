@@ -149,5 +149,5 @@ void main(void){
         color += raytrace(ray, count);
     }
 
-    outColor = texture(u_texture, gl_FragCoord.xy) + vec4(color / float(spp), 1.0);
+    outColor = texture(u_texture, v_texcoord) + vec4(color / float(spp), 1.0);
 }

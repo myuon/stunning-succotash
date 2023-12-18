@@ -1,6 +1,6 @@
 import shaderVertSource from "./glsl/shader.vert?raw";
 import shaderFragSource from "./glsl/shader.frag?raw";
-import accumRendererFragSource from "./glsl/accumRenderer.frag?raw";
+import rendererFragSource from "./glsl/renderer.frag?raw";
 
 const compileShader = (
   gl: WebGL2RenderingContext,
@@ -146,7 +146,7 @@ const main = () => {
     resolution: gl.getUniformLocation(program, "resolution"),
   };
 
-  const vao = createVao(
+  const shaderVao = createVao(
     gl,
     [
       [
@@ -169,12 +169,54 @@ const main = () => {
       [1, 2, 3],
     ].flat()
   );
-  if (!vao) {
+  if (!shaderVao) {
     console.error("Failed to create vertexArray");
     return;
   }
 
-  const [texture, targetTexture] = new Array(2).map(() => {
+  const rendererProgram = createProgramFromSource(
+    gl,
+    shaderVertSource,
+    rendererFragSource
+  );
+  if (!rendererProgram) return;
+
+  const rendererProgramLocations = {
+    position: gl.getAttribLocation(rendererProgram, "position"),
+    texcoord: gl.getAttribLocation(rendererProgram, "a_texcoord"),
+    texture: gl.getUniformLocation(rendererProgram, "u_texture"),
+    sppInv: gl.getUniformLocation(rendererProgram, "spp_inv"),
+  };
+
+  const rendererVao = createVao(
+    gl,
+    [
+      [
+        [-1.0, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+      ].flat(),
+      [
+        [-1.0, 1.0],
+        [1.0, 1.0],
+        [-1.0, -1.0],
+        [1.0, -1.0],
+      ].flat(),
+    ],
+    [rendererProgramLocations.position, rendererProgramLocations.texcoord],
+    [3, 2],
+    [
+      [0, 1, 2],
+      [1, 2, 3],
+    ].flat()
+  );
+  if (!rendererVao) {
+    console.error("Failed to create vertexArray");
+    return;
+  }
+
+  const [targetTexture] = new Array(1).map(() => {
     const tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.activeTexture(gl.TEXTURE0);
@@ -208,12 +250,12 @@ const main = () => {
     0
   );
 
-  let delta = 0;
+  let delta = 1;
 
   const loop = () => {
     // render to framebuffer -----------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.bindTexture(gl.TEXTURE_2D, targetTexture);
     gl.viewport(0, 0, canvas.width, canvas.height);
 
     gl.clearColor(0.0, 0.0, 1.0, 1.0);
@@ -222,7 +264,7 @@ const main = () => {
     // draw
     {
       gl.useProgram(program);
-      gl.bindVertexArray(vao);
+      gl.bindVertexArray(shaderVao);
       gl.uniform1i(programLocations.texture, 0);
       gl.uniform1i(programLocations.delta, delta);
       gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
@@ -239,11 +281,10 @@ const main = () => {
 
     // draw
     {
-      gl.useProgram(program);
-      gl.bindVertexArray(vao);
-      gl.uniform1i(programLocations.texture, 0);
-      gl.uniform1i(programLocations.delta, delta);
-      gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
+      gl.useProgram(rendererProgram);
+      gl.bindVertexArray(rendererVao);
+      gl.uniform1i(rendererProgramLocations.texture, 0);
+      gl.uniform1f(rendererProgramLocations.sppInv, 1.0 / delta);
       gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
     }
 
