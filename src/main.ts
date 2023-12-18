@@ -156,7 +156,7 @@ uniform sampler2D u_texture;
 out vec4 outColor;
 
 void main() {
-  outColor = texture(u_texture, v_texcoord);
+  outColor = texture(u_texture, v_texcoord) + vec4(1.0, 1.0, 1.0, 0.5);
 }
 `
   );
@@ -184,9 +184,15 @@ void main() {
         [-1.0, -1.0, 0.0],
         [1.0, -1.0, 0.0],
       ].flat(),
+      [
+        [-1.0, 1.0],
+        [1.0, 1.0],
+        [-1.0, -1.0],
+        [1.0, -1.0],
+      ].flat(),
     ],
-    [programLocations.position],
-    [3],
+    [programLocations.position, programLocations.texcoord],
+    [3, 2],
     [
       [0, 1, 2],
       [1, 2, 3],
@@ -196,16 +202,6 @@ void main() {
     console.error("Failed to create vertexArray");
     return;
   }
-
-  const texcoordBuffer = gl.createBuffer();
-  if (!texcoordBuffer) {
-    console.error("Failed to create buffer");
-    return;
-  }
-  gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-  gl.enableVertexAttribArray(programLocations.texcoord);
-  gl.vertexAttribPointer(programLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
-  gl.bindVertexArray(null);
 
   const [texture, targetTexture] = new Array(2).map(() => {
     const tex = gl.createTexture()!;
