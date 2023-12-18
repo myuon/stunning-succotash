@@ -92,22 +92,42 @@ const createIbo = (gl: WebGL2RenderingContext, data: number[]) => {
   return ibo;
 };
 
-const setAttribute = (
+const createVao = (
   gl: WebGL2RenderingContext,
-  vbo: WebGLBuffer[],
-  locations: number[],
-  stride: number[]
+  vboArray: WebGLBuffer[],
+  attrLocations: number[],
+  stides: number[],
+  iboData: number[]
 ) => {
-  if (vbo.length !== locations.length || vbo.length !== stride.length) {
-    console.error("Failed to set attribute");
+  const vao = gl.createVertexArray();
+  if (!vao) {
+    console.error("Failed to create vertexArray");
     return;
   }
+  gl.bindVertexArray(vao);
 
-  vbo.forEach((v, i) => {
-    gl.bindBuffer(gl.ARRAY_BUFFER, v);
-    gl.enableVertexAttribArray(locations[i]);
-    gl.vertexAttribPointer(locations[i], stride[i], gl.FLOAT, false, 0, 0);
+  vboArray.forEach((vbo, i) => {
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.enableVertexAttribArray(attrLocations[i]);
+    gl.vertexAttribPointer(attrLocations[i], 3, gl.FLOAT, false, stides[i], 0);
   });
+  if (iboData) {
+    const ibo = gl.createBuffer();
+    if (!ibo) {
+      console.error("Failed to create buffer");
+      return;
+    }
+
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+    gl.bufferData(
+      gl.ELEMENT_ARRAY_BUFFER,
+      new Int16Array(iboData),
+      gl.STATIC_DRAW
+    );
+  }
+  gl.bindVertexArray(null);
+
+  return vao;
 };
 
 const main = () => {
@@ -122,10 +142,40 @@ const main = () => {
 
   const program = createProgramFromSource(
     gl,
-    shaderVertSource,
-    shaderFragSource
+    `#version 300 es
+
+in vec3 position;
+in vec2 a_texcoord;
+
+out vec2 v_texcoord;
+
+void main() {
+  gl_Position = vec4(position, 1.0);
+  v_texcoord = a_texcoord;
+}
+`,
+    `#version 300 es
+
+precision highp float;
+
+in vec2 v_texcoord;
+
+uniform sampler2D u_texture;
+
+out vec4 outColor;
+
+void main() {
+  outColor = texture(u_texture, v_texcoord);
+}
+`
   );
   if (!program) return;
+
+  const programLocations = {
+    position: gl.getAttribLocation(program, "position"),
+    texcoord: gl.getAttribLocation(program, "a_texcoord"),
+    texture: gl.getUniformLocation(program, "u_texture"),
+  };
 
   const accumProgram = createProgramFromSource(
     gl,
@@ -139,33 +189,46 @@ const main = () => {
     [1, 2, 3],
   ].flat();
 
-  const vbo = createVbo(
+  const vao = createVao(
     gl,
     [
-      [-1.0, 1.0, 0.0],
-      [1.0, 1.0, 0.0],
-      [-1.0, -1.0, 0.0],
-      [1.0, -1.0, 0.0],
-    ].flat()
+      createVbo(
+        gl,
+        [
+          [-1.0, 1.0, 0.0],
+          [1.0, 1.0, 0.0],
+          [-1.0, -1.0, 0.0],
+          [1.0, -1.0, 0.0],
+        ].flat()
+      )!,
+    ],
+    [programLocations.position],
+    [3 * 4],
+    indices
   );
-  if (!vbo) return;
+  if (!vao) {
+    console.error("Failed to create vertexArray");
+    return;
+  }
 
-  setAttribute(gl, [vbo], [gl.getAttribLocation(program, "position")], [3]);
-  setAttribute(
-    gl,
-    [vbo],
-    [gl.getAttribLocation(accumProgram, "position")],
-    [3]
-  );
+  const texcoordBuffer = gl.createBuffer();
+  if (!texcoordBuffer) {
+    console.error("Failed to create buffer");
+    return;
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+  gl.enableVertexAttribArray(programLocations.texcoord);
+  gl.vertexAttribPointer(programLocations.texcoord, 2, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
 
   const ibo = createIbo(gl, indices);
   if (!ibo) return;
-
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
 
-  const [accumTexture] = new Array(1).map(() => {
+  const [texture, targetTexture] = new Array(2).map(() => {
     const tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.activeTexture(gl.TEXTURE0);
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
@@ -177,109 +240,63 @@ const main = () => {
       gl.UNSIGNED_BYTE,
       null
     );
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.bindTexture(gl.TEXTURE_2D, null);
 
     return tex;
   });
 
-  const stateTexture = gl.createTexture();
-  if (!stateTexture) {
-    console.error("Failed to create texture");
-    return;
-  }
-  gl.bindTexture(gl.TEXTURE_2D, stateTexture);
-  gl.texImage2D(
-    // gl.TEXTURE_2D,
-    // 0,
-    // gl.R32UI,
-    // bufferSize,
-    // bufferSize,
-    // 0,
-    // gl.RED_INTEGER,
-    // gl.UNSIGNED_INT,
-    // null
-    gl.TEXTURE_2D,
-    0,
-    gl.RGBA,
-    canvas.width,
-    canvas.height,
-    0,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    null
-  );
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.bindTexture(gl.TEXTURE_2D, null);
-
-  const accumFbo = gl.createFramebuffer();
-  if (!accumFbo) {
+  const fbo = gl.createFramebuffer();
+  if (!fbo) {
     console.error("Failed to create frameBuffer");
     return;
   }
-  gl.bindFramebuffer(gl.FRAMEBUFFER, accumFbo);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
   gl.framebufferTexture2D(
     gl.FRAMEBUFFER,
     gl.COLOR_ATTACHMENT0,
     gl.TEXTURE_2D,
-    accumTexture,
+    targetTexture,
     0
   );
-  gl.framebufferTexture2D(
-    gl.FRAMEBUFFER,
-    gl.COLOR_ATTACHMENT1,
-    gl.TEXTURE_2D,
-    stateTexture,
-    0
-  );
-  gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-  gl.useProgram(program);
-  gl.uniform1i(gl.getUniformLocation(program, "accumTexture"), 0);
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, accumTexture);
-  gl.useProgram(null);
-
-  gl.useProgram(accumProgram);
-  gl.uniform1i(gl.getUniformLocation(accumProgram, "accumTexture"), 0);
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, accumTexture);
-  gl.useProgram(null);
 
   let count = 0;
 
   const loop = () => {
     // render to framebuffer -----------------------------
-    gl.bindFramebuffer(gl.FRAMEBUFFER, accumFbo);
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    // gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.viewport(100, 100, 200, 200);
 
-    gl.useProgram(program);
-
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    gl.clearDepth(1.0);
+    gl.clearColor(0.0, 0.0, 1.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
-
-    gl.useProgram(null);
+    // draw
+    {
+      gl.useProgram(program);
+      gl.bindVertexArray(vao);
+      gl.uniform1i(programLocations.texture, 0);
+      gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+    }
 
     // render to canvas ----------------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+    // gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.viewport(100, 100, 200, 200);
 
-    gl.useProgram(accumProgram);
-    gl.uniform1f(gl.getUniformLocation(accumProgram, "sppInv"), 1.0 / count);
-
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    gl.clearDepth(1.0);
+    gl.clearColor(1.0, 0.0, 0.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+    // draw
+    {
+      gl.useProgram(program);
+      gl.bindVertexArray(vao);
+      gl.uniform1i(programLocations.texture, 0);
+      gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+    }
 
-    gl.useProgram(null);
-
+    // tick ----------------------------------------------
     gl.flush();
 
     count++;
