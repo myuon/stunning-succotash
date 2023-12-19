@@ -121,6 +121,60 @@ const createVao = (
   return vao;
 };
 
+const diagnoseFramebuffer = (gl: WebGL2RenderingContext) => {
+  const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  switch (status) {
+    case gl.FRAMEBUFFER_COMPLETE:
+      console.log("FRAMEBUFFER_COMPLETE");
+      break;
+    case gl.FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
+      console.warn("FRAMEBUFFER_INCOMPLETE_ATTACHMENT");
+      break;
+    case gl.FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
+      console.warn("FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT");
+      break;
+    case gl.FRAMEBUFFER_INCOMPLETE_DIMENSIONS:
+      console.warn("FRAMEBUFFER_INCOMPLETE_DIMENSIONS");
+      break;
+    case gl.FRAMEBUFFER_UNSUPPORTED:
+      console.warn("FRAMEBUFFER_UNSUPPORTED");
+      break;
+    default:
+      console.error("Unknown framebuffer status");
+      break;
+  }
+};
+
+const diagnoseGlError = (gl: WebGL2RenderingContext) => {
+  const error = gl.getError();
+  switch (error) {
+    case gl.NO_ERROR:
+      console.log("NO_ERROR");
+      break;
+    case gl.INVALID_ENUM:
+      console.warn("INVALID_ENUM");
+      break;
+    case gl.INVALID_VALUE:
+      console.warn("INVALID_VALUE");
+      break;
+    case gl.INVALID_OPERATION:
+      console.warn("INVALID_OPERATION");
+      break;
+    case gl.INVALID_FRAMEBUFFER_OPERATION:
+      console.warn("INVALID_FRAMEBUFFER_OPERATION");
+      break;
+    case gl.OUT_OF_MEMORY:
+      console.warn("OUT_OF_MEMORY");
+      break;
+    case gl.CONTEXT_LOST_WEBGL:
+      console.warn("CONTEXT_LOST_WEBGL");
+      break;
+    default:
+      console.error("Unknown error");
+      break;
+  }
+};
+
 const main = () => {
   const canvas = document.querySelector("#glcanvas")! as HTMLCanvasElement;
   const gl = canvas.getContext("webgl2");
