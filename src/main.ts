@@ -1,6 +1,7 @@
 import shaderVertSource from "./glsl/shader.vert?raw";
 import shaderFragSource from "./glsl/shader.frag?raw";
 import rendererFragSource from "./glsl/renderer.frag?raw";
+import copyFragSource from "./glsl/copy.frag?raw";
 
 const compileShader = (
   gl: WebGL2RenderingContext,
@@ -82,7 +83,7 @@ const createVao = (
   gl: WebGL2RenderingContext,
   vboDataArray: number[][],
   attrLocations: number[],
-  stides: number[],
+  attrSizes: number[],
   iboData: number[]
 ) => {
   const vao = gl.createVertexArray();
@@ -100,7 +101,14 @@ const createVao = (
 
     gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
     gl.enableVertexAttribArray(attrLocations[i]);
-    gl.vertexAttribPointer(attrLocations[i], stides[i], gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(
+      attrLocations[i],
+      attrSizes[i],
+      gl.FLOAT,
+      false,
+      0,
+      0
+    );
   });
   if (iboData) {
     const ibo = gl.createBuffer();
@@ -270,7 +278,48 @@ const main = () => {
     return;
   }
 
-  const [targetTexture] = new Array(1).map(() => {
+  const copyProgram = createProgramFromSource(
+    gl,
+    shaderVertSource,
+    copyFragSource
+  );
+  if (!copyProgram) return;
+
+  const copyProgramLocations = {
+    position: gl.getAttribLocation(rendererProgram, "position"),
+    texcoord: gl.getAttribLocation(rendererProgram, "a_texcoord"),
+    texture: gl.getUniformLocation(rendererProgram, "u_texture"),
+  };
+
+  const copyVao = createVao(
+    gl,
+    [
+      [
+        [-1.0, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+      ].flat(),
+      [
+        [-1.0, 1.0],
+        [1.0, 1.0],
+        [-1.0, -1.0],
+        [1.0, -1.0],
+      ].flat(),
+    ],
+    [copyProgramLocations.position, copyProgramLocations.texcoord],
+    [3, 2],
+    [
+      [0, 1, 2],
+      [1, 2, 3],
+    ].flat()
+  );
+  if (!copyVao) {
+    console.error("Failed to create vertexArray");
+    return;
+  }
+
+  const textures = Array.from({ length: 2 }).map(() => {
     const tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.activeTexture(gl.TEXTURE0);
@@ -286,6 +335,7 @@ const main = () => {
       null
     );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
     return tex;
   });
@@ -300,16 +350,34 @@ const main = () => {
     gl.FRAMEBUFFER,
     gl.COLOR_ATTACHMENT0,
     gl.TEXTURE_2D,
-    targetTexture,
+    textures[0],
+    0
+  );
+
+  diagnoseFramebuffer(gl);
+
+  const copyFbo = gl.createFramebuffer();
+  if (!copyFbo) {
+    console.error("Failed to create frameBuffer");
+    return;
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, copyFbo);
+  gl.framebufferTexture2D(
+    gl.FRAMEBUFFER,
+    gl.COLOR_ATTACHMENT0,
+    gl.TEXTURE_2D,
+    textures[1],
     0
   );
 
   let delta = 1;
 
+  const runFlag = false;
+
   const loop = () => {
     // render to framebuffer -----------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-    gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+    gl.bindTexture(gl.TEXTURE_2D, textures[1]);
     gl.viewport(0, 0, canvas.width, canvas.height);
 
     gl.clearColor(0.0, 0.0, 1.0, 1.0);
@@ -325,9 +393,13 @@ const main = () => {
       gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
     }
 
+    if (!runFlag) {
+      diagnoseGlError(gl);
+    }
+
     // render to canvas ----------------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+    gl.bindTexture(gl.TEXTURE_2D, null);
     gl.viewport(0, 0, canvas.width, canvas.height);
 
     gl.clearColor(1.0, 0.0, 0.0, 1.0);
@@ -342,12 +414,38 @@ const main = () => {
       gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
     }
 
+    if (!runFlag) {
+      diagnoseGlError(gl);
+    }
+
+    // transfer texture ----------------------------------
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, copyFbo);
+    gl.bindTexture(gl.TEXTURE_2D, textures[0]);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+
+    gl.clearColor(0.0, 1.0, 0.0, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // draw
+    {
+      gl.useProgram(copyProgram);
+      gl.bindVertexArray(copyVao);
+      gl.uniform1i(copyProgramLocations.texture, 0);
+      gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+    }
+
+    if (!runFlag) {
+      diagnoseGlError(gl);
+    }
+
     // tick ----------------------------------------------
     gl.flush();
 
     delta++;
 
-    requestAnimationFrame(loop);
+    if (runFlag) {
+      requestAnimationFrame(loop);
+    }
   };
   loop();
 };
