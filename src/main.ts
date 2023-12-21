@@ -286,9 +286,9 @@ const main = () => {
   if (!copyProgram) return;
 
   const copyProgramLocations = {
-    position: gl.getAttribLocation(rendererProgram, "position"),
-    texcoord: gl.getAttribLocation(rendererProgram, "a_texcoord"),
-    texture: gl.getUniformLocation(rendererProgram, "u_texture"),
+    position: gl.getAttribLocation(copyProgram, "position"),
+    texcoord: gl.getAttribLocation(copyProgram, "a_texcoord"),
+    texture: gl.getUniformLocation(copyProgram, "u_texture"),
   };
 
   const copyVao = createVao(
@@ -372,7 +372,7 @@ const main = () => {
 
   let delta = 1;
 
-  const runFlag = false;
+  const runFlag = true;
 
   const loop = () => {
     // render to framebuffer -----------------------------
@@ -443,7 +443,7 @@ const main = () => {
 
     delta++;
 
-    if (runFlag) {
+    if (runFlag && delta < 10) {
       requestAnimationFrame(loop);
     }
   };
