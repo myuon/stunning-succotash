@@ -12,7 +12,7 @@ out vec4 outColor;
 const float PI = 3.14159265;
 const float angle = 60.0;
 const float fov = angle * 0.5 * PI / 180.0;
-const float kEPS = 0.0001;
+const float kEPS = 1e-5;
 
 float rand(vec2 p){
     return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453);
@@ -31,17 +31,23 @@ vec3 randOnHemisphere(vec3 n){
     return u * x + v * y + n * z;
 }
 
-struct Circle {
+const uint Diffuse = 0u;
+const uint Specular = 1u;
+const uint Refractive = 2u;
+
+struct Sphere {
     vec3 center;
     float radius;
     vec3 emission;
+    vec3 color;
+    uint reflection_type;
 };
 
-const Circle[] objects = Circle[](
-    Circle(vec3(-0.577, 0.577, 0.577), 0.1, vec3(25.0, 0.2, 0.2)),
-    Circle(vec3(0.577, 0.577, 0.577), 0.1, vec3(0.2, 0.2, 25.0)),
-    Circle(vec3(0.0, 0.0, -2.0), 1.0, vec3(0.0, 0.0, 0.0)),
-    Circle(vec3(0.0, 0.0, 0.0), 2.5, vec3(0.0, 0.0, 0.0))
+const Sphere[] objects = Sphere[](
+    Sphere(vec3(-0.577, 0.577, 0.577), 0.1, vec3(25.0), vec3(0.75, 0.25, 0.25), Diffuse),
+    Sphere(vec3(0.577, 0.577, 0.577), 0.1, vec3(25.0), vec3(0.25, 0.75, 0.25), Diffuse),
+    Sphere(vec3(0.0, 0.0, -2.0), 1.0, vec3(0.0), vec3(0.75, 0.75, 0.75), Diffuse),
+    Sphere(vec3(0.0, 0.0, 0.0), 2.0, vec3(0.0), vec3(0.75, 0.75, 0.75), Diffuse)
 );
 
 struct Hit {
@@ -59,7 +65,7 @@ Hit intersect(Ray ray){
     float dist = 10000.0;
     Hit hit = Hit(-1, vec3(0.0), vec3(0.0));
     for(int i = 0; i < objects.length(); i++){
-        Circle obj = objects[i];
+        Sphere obj = objects[i];
         float b = dot(ray.direction, obj.center - ray.origin);
         float c = dot(obj.center - ray.origin, obj.center - ray.origin) - obj.radius * obj.radius;
         float d = b * b - c;
@@ -111,6 +117,7 @@ vec3 raytrace(Ray ray, int count) {
         }
 
         color += vec3(objects[hit.index].emission * alpha);
+        color *= objects[hit.index].color;
 
         alpha *= 0.9;
 
