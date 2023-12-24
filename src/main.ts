@@ -1,7 +1,6 @@
 import shaderVertSource from "./glsl/shader.vert?raw";
 import shaderFragSource from "./glsl/shader.frag?raw";
 import rendererFragSource from "./glsl/renderer.frag?raw";
-import copyFragSource from "./glsl/copy.frag?raw";
 
 const compileShader = (
   gl: WebGL2RenderingContext,
