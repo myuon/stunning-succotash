@@ -1,6 +1,6 @@
 import shaderVertSource from "./glsl/shader.vert?raw";
 import shaderFragSource from "./glsl/shader.frag?raw";
-import accumRendererFragSource from "./glsl/accumRenderer.frag?raw";
+import rendererFragSource from "./glsl/renderer.frag?raw";
 
 const compileShader = (
   gl: WebGL2RenderingContext,
@@ -78,40 +78,113 @@ const createVbo = (gl: WebGL2RenderingContext, data: number[]) => {
   return vbo;
 };
 
-const createIbo = (gl: WebGL2RenderingContext, data: number[]) => {
-  const ibo = gl.createBuffer();
-  if (!ibo) {
-    console.error("Failed to create buffer");
+const createVao = (
+  gl: WebGL2RenderingContext,
+  vboDataArray: number[][],
+  attrLocations: number[],
+  attrSizes: number[],
+  iboData: number[]
+) => {
+  const vao = gl.createVertexArray();
+  if (!vao) {
+    console.error("Failed to create vertexArray");
     return;
   }
+  gl.bindVertexArray(vao);
 
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(data), gl.STATIC_DRAW);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+  vboDataArray.forEach((vboData, i) => {
+    const vbo = createVbo(gl, vboData);
+    if (!vbo) {
+      throw new Error("Failed to create vbo");
+    }
 
-  return ibo;
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.enableVertexAttribArray(attrLocations[i]);
+    gl.vertexAttribPointer(
+      attrLocations[i],
+      attrSizes[i],
+      gl.FLOAT,
+      false,
+      0,
+      0
+    );
+  });
+  if (iboData) {
+    const ibo = gl.createBuffer();
+    if (!ibo) {
+      console.error("Failed to create buffer");
+      return;
+    }
+
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+    gl.bufferData(
+      gl.ELEMENT_ARRAY_BUFFER,
+      new Int16Array(iboData),
+      gl.STATIC_DRAW
+    );
+  }
+  gl.bindVertexArray(null);
+
+  return vao;
 };
 
-const setAttribute = (
-  gl: WebGL2RenderingContext,
-  vbo: WebGLBuffer[],
-  locations: number[],
-  stride: number[]
-) => {
-  if (vbo.length !== locations.length || vbo.length !== stride.length) {
-    console.error("Failed to set attribute");
-    return;
+const diagnoseFramebuffer = (gl: WebGL2RenderingContext) => {
+  const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  switch (status) {
+    case gl.FRAMEBUFFER_COMPLETE:
+      console.log("FRAMEBUFFER_COMPLETE");
+      break;
+    case gl.FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
+      console.warn("FRAMEBUFFER_INCOMPLETE_ATTACHMENT");
+      break;
+    case gl.FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
+      console.warn("FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT");
+      break;
+    case gl.FRAMEBUFFER_INCOMPLETE_DIMENSIONS:
+      console.warn("FRAMEBUFFER_INCOMPLETE_DIMENSIONS");
+      break;
+    case gl.FRAMEBUFFER_UNSUPPORTED:
+      console.warn("FRAMEBUFFER_UNSUPPORTED");
+      break;
+    default:
+      console.error("Unknown framebuffer status");
+      break;
   }
+};
 
-  vbo.forEach((v, i) => {
-    gl.bindBuffer(gl.ARRAY_BUFFER, v);
-    gl.enableVertexAttribArray(locations[i]);
-    gl.vertexAttribPointer(locations[i], stride[i], gl.FLOAT, false, 0, 0);
-  });
+const diagnoseGlError = (gl: WebGL2RenderingContext) => {
+  const error = gl.getError();
+  switch (error) {
+    case gl.NO_ERROR:
+      console.log("NO_ERROR");
+      break;
+    case gl.INVALID_ENUM:
+      console.warn("INVALID_ENUM");
+      break;
+    case gl.INVALID_VALUE:
+      console.warn("INVALID_VALUE");
+      break;
+    case gl.INVALID_OPERATION:
+      console.warn("INVALID_OPERATION");
+      break;
+    case gl.INVALID_FRAMEBUFFER_OPERATION:
+      console.warn("INVALID_FRAMEBUFFER_OPERATION");
+      break;
+    case gl.OUT_OF_MEMORY:
+      console.warn("OUT_OF_MEMORY");
+      break;
+    case gl.CONTEXT_LOST_WEBGL:
+      console.warn("CONTEXT_LOST_WEBGL");
+      break;
+    default:
+      console.error("Unknown error");
+      break;
+  }
 };
 
 const main = () => {
-  const canvas = document.querySelector("#glcanvas")! as HTMLCanvasElement;
+  const output = document.getElementById("output")! as HTMLDivElement;
+  const canvas = document.getElementById("glcanvas")! as HTMLCanvasElement;
   const gl = canvas.getContext("webgl2");
   if (!gl) {
     console.error("Failed to get WebGL context");
@@ -127,163 +200,165 @@ const main = () => {
   );
   if (!program) return;
 
-  const accumProgram = createProgramFromSource(
-    gl,
-    shaderVertSource,
-    accumRendererFragSource
-  );
-  if (!accumProgram) return;
+  const programLocations = {
+    position: gl.getAttribLocation(program, "position"),
+    texcoord: gl.getAttribLocation(program, "a_texcoord"),
+    texture: gl.getUniformLocation(program, "u_texture"),
+    iterations: gl.getUniformLocation(program, "iterations"),
+    resolution: gl.getUniformLocation(program, "resolution"),
+  };
 
-  const indices = [
-    [0, 1, 2],
-    [1, 2, 3],
-  ].flat();
-
-  const vbo = createVbo(
+  const shaderVao = createVao(
     gl,
     [
-      [-1.0, 1.0, 0.0],
-      [1.0, 1.0, 0.0],
-      [-1.0, -1.0, 0.0],
-      [1.0, -1.0, 0.0],
+      [
+        [-1.0, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+      ].flat(),
+      [
+        [-1.0, 1.0],
+        [1.0, 1.0],
+        [-1.0, -1.0],
+        [1.0, -1.0],
+      ].flat(),
+    ],
+    [programLocations.position, programLocations.texcoord],
+    [3, 2],
+    [
+      [0, 1, 2],
+      [1, 2, 3],
     ].flat()
   );
-  if (!vbo) return;
+  if (!shaderVao) {
+    console.error("Failed to create vertexArray");
+    return;
+  }
 
-  setAttribute(gl, [vbo], [gl.getAttribLocation(program, "position")], [3]);
-  setAttribute(
+  const rendererProgram = createProgramFromSource(
     gl,
-    [vbo],
-    [gl.getAttribLocation(accumProgram, "position")],
-    [3]
+    shaderVertSource,
+    rendererFragSource
   );
+  if (!rendererProgram) return;
 
-  const ibo = createIbo(gl, indices);
-  if (!ibo) return;
+  const rendererProgramLocations = {
+    position: gl.getAttribLocation(rendererProgram, "position"),
+    texcoord: gl.getAttribLocation(rendererProgram, "a_texcoord"),
+    texture: gl.getUniformLocation(rendererProgram, "u_texture"),
+  };
 
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  const rendererVao = createVao(
+    gl,
+    [
+      [
+        [-1.0, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+      ].flat(),
+      [
+        [-1.0, 1.0],
+        [1.0, 1.0],
+        [-1.0, -1.0],
+        [1.0, -1.0],
+      ].flat(),
+    ],
+    [rendererProgramLocations.position, rendererProgramLocations.texcoord],
+    [3, 2],
+    [
+      [0, 1, 2],
+      [1, 2, 3],
+    ].flat()
+  );
+  if (!rendererVao) {
+    console.error("Failed to create vertexArray");
+    return;
+  }
 
-  const [accumTexture] = new Array(1).map(() => {
+  const textures = Array.from({ length: 2 }).map(() => {
     const tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.activeTexture(gl.TEXTURE0);
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.RGB,
+      gl.RGBA,
       canvas.width,
       canvas.height,
       0,
-      gl.RGB,
+      gl.RGBA,
       gl.UNSIGNED_BYTE,
       null
     );
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.bindTexture(gl.TEXTURE_2D, null);
 
     return tex;
   });
 
-  const stateTexture = gl.createTexture();
-  if (!stateTexture) {
-    console.error("Failed to create texture");
-    return;
-  }
-  gl.bindTexture(gl.TEXTURE_2D, stateTexture);
-  gl.texImage2D(
-    // gl.TEXTURE_2D,
-    // 0,
-    // gl.R32UI,
-    // bufferSize,
-    // bufferSize,
-    // 0,
-    // gl.RED_INTEGER,
-    // gl.UNSIGNED_INT,
-    // null
-    gl.TEXTURE_2D,
-    0,
-    gl.RGB,
-    canvas.width,
-    canvas.height,
-    0,
-    gl.RGB,
-    gl.UNSIGNED_BYTE,
-    null
-  );
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.bindTexture(gl.TEXTURE_2D, null);
-
-  const accumFbo = gl.createFramebuffer();
-  if (!accumFbo) {
+  const fbo = gl.createFramebuffer();
+  if (!fbo) {
     console.error("Failed to create frameBuffer");
     return;
   }
-  gl.bindFramebuffer(gl.FRAMEBUFFER, accumFbo);
-  gl.framebufferTexture2D(
-    gl.FRAMEBUFFER,
-    gl.COLOR_ATTACHMENT0,
-    gl.TEXTURE_2D,
-    accumTexture,
-    0
-  );
-  gl.framebufferTexture2D(
-    gl.FRAMEBUFFER,
-    gl.COLOR_ATTACHMENT1,
-    gl.TEXTURE_2D,
-    stateTexture,
-    0
-  );
-  gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-  gl.useProgram(program);
-  gl.uniform1i(gl.getUniformLocation(program, "accumTexture"), 0);
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, accumTexture);
-  gl.useProgram(null);
+  let iterations = 1;
 
-  gl.useProgram(accumProgram);
-  gl.uniform1i(gl.getUniformLocation(accumProgram, "accumTexture"), 0);
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, accumTexture);
-  gl.useProgram(null);
-
-  let count = 0;
+  const runFlag = true;
 
   const loop = () => {
-    // render to framebuffer -----------------------------
-    gl.bindFramebuffer(gl.FRAMEBUFFER, accumFbo);
-
+    // render --------------------------------------------
     gl.useProgram(program);
 
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    gl.clearDepth(1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, textures[0]);
+    gl.uniform1i(programLocations.texture, 0);
+    gl.uniform1i(programLocations.iterations, iterations);
+    gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
 
-    gl.useProgram(null);
+    gl.bindVertexArray(shaderVao);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      textures[1],
+      0
+    );
 
-    // render to canvas ----------------------------------
+    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-    gl.useProgram(accumProgram);
-    gl.uniform1f(gl.getUniformLocation(accumProgram, "sppInv"), 1.0 / count);
+    textures.reverse();
 
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    gl.clearDepth(1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    // renderer ------------------------------------------
+    gl.useProgram(rendererProgram);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, textures[0]);
+    gl.uniform1i(rendererProgramLocations.texture, 0);
 
-    gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+    gl.bindVertexArray(rendererVao);
+    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 
-    gl.useProgram(null);
+    if (!runFlag) {
+      diagnoseGlError(gl);
+    }
 
+    // tick ----------------------------------------------
     gl.flush();
 
-    count++;
+    iterations++;
 
-    requestAnimationFrame(loop);
+    if (runFlag) {
+      requestAnimationFrame(loop);
+    }
+
+    output.innerHTML = `iterations: ${iterations}`;
   };
   loop();
 };
