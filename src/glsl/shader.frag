@@ -37,7 +37,7 @@ vec3 rand3(vec3 p){
 	return fract(sin(q) * 43758.5453123);
 }
 
-vec3 randOnHemisphere(vec3 n){
+vec3 randOnHemisphere(vec3 n, float seed){
     vec3 w = n;
     vec3 u = normalize(cross(vec3(1.0, 0.0, 0.0), w));
     if (abs(w.x) > kEPS) {
@@ -45,9 +45,8 @@ vec3 randOnHemisphere(vec3 n){
     }
 
     vec3 v = cross(w, u);
-    vec3 rs = rand3(n);
-    float r1 = rs.x;
-    float r2 = rs.y;
+    float r1 = rand(vec2(seed, 0.0) + n.xy);
+    float r2 = rand(vec2(seed, 1.0) + n.yz);
 
     float phy = 2.0 * PI * r1;
     float cos_theta = sqrt(1.0 - r2);
@@ -131,27 +130,12 @@ Hit intersect(Ray ray){
     return hit;
 }
 
-vec3 sample_lambertian_cosine_pdf(vec3 normal) {
-    vec3 w = normal;
-    vec3 u = normalize(cross(vec3(1.0, 0.0, 0.0), w));
-    if (abs(w.x) > kEPS) {
-        u = normalize(cross(vec3(0.0, 1.0, 0.0), w));
-    }
-
-    vec3 v = cross(w, u);
-
-    float r1 = 2.0 * PI * rand(normal.xy);
-    float cos_r2 = sqrt(rand(normal.yz));
-
-    return normalize(u * cos(r1) * cos_r2 + v * sin(r1) * cos_r2 + w * sqrt(1.0 - cos_r2 * cos_r2));
-}
-
 vec3 raytrace(Ray ray) {
     vec3 color = vec3(0.0);
     vec3 weight = vec3(1.0);
     int count = 0;
 
-    while (count < 150) {
+    while (true) {
         Hit hit = intersect(ray);
         if (hit.index == -1) {
             return color;
@@ -170,17 +154,17 @@ vec3 raytrace(Ray ray) {
             russian_roulette_threshold *= pow(0.5, float(count - 5));
         }
 
-        if (rand(vec2(hit.point.x + hit.point.y, hit.point.z + max(max(weight.r, weight.g), weight.b))) >= russian_roulette_threshold) {
+        float seed = float(iterations) + float(count) + rand(hit.point.xy);
+        float r = rand(vec2(seed, 0.0));
+        if (r >= russian_roulette_threshold) {
             return color;
         }
 
-        ray.direction = sample_lambertian_cosine_pdf(hit.normal);
+        ray.direction = randOnHemisphere(hit.normal, seed);
         ray.origin = hit.point + ray.direction * kEPS;
         weight *= objects[hit.index].color * 1.0 / russian_roulette_threshold;
         count++;
     }
-
-    return vec3(1.0, 0.0, 1.0);
 }
 
 struct Camera {
