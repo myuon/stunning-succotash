@@ -204,7 +204,7 @@ const main = () => {
     position: gl.getAttribLocation(program, "position"),
     texcoord: gl.getAttribLocation(program, "a_texcoord"),
     texture: gl.getUniformLocation(program, "u_texture"),
-    delta: gl.getUniformLocation(program, "delta"),
+    iterations: gl.getUniformLocation(program, "iterations"),
     resolution: gl.getUniformLocation(program, "resolution"),
   };
 
@@ -247,7 +247,6 @@ const main = () => {
     position: gl.getAttribLocation(rendererProgram, "position"),
     texcoord: gl.getAttribLocation(rendererProgram, "a_texcoord"),
     texture: gl.getUniformLocation(rendererProgram, "u_texture"),
-    sppInv: gl.getUniformLocation(rendererProgram, "spp_inv"),
   };
 
   const rendererVao = createVao(
@@ -274,47 +273,6 @@ const main = () => {
     ].flat()
   );
   if (!rendererVao) {
-    console.error("Failed to create vertexArray");
-    return;
-  }
-
-  const copyProgram = createProgramFromSource(
-    gl,
-    shaderVertSource,
-    copyFragSource
-  );
-  if (!copyProgram) return;
-
-  const copyProgramLocations = {
-    position: gl.getAttribLocation(copyProgram, "position"),
-    texcoord: gl.getAttribLocation(copyProgram, "a_texcoord"),
-    texture: gl.getUniformLocation(copyProgram, "u_texture"),
-  };
-
-  const copyVao = createVao(
-    gl,
-    [
-      [
-        [-1.0, 1.0, 0.0],
-        [1.0, 1.0, 0.0],
-        [-1.0, -1.0, 0.0],
-        [1.0, -1.0, 0.0],
-      ].flat(),
-      [
-        [-1.0, 1.0],
-        [1.0, 1.0],
-        [-1.0, -1.0],
-        [1.0, -1.0],
-      ].flat(),
-    ],
-    [copyProgramLocations.position, copyProgramLocations.texcoord],
-    [3, 2],
-    [
-      [0, 1, 2],
-      [1, 2, 3],
-    ].flat()
-  );
-  if (!copyVao) {
     console.error("Failed to create vertexArray");
     return;
   }
@@ -347,7 +305,7 @@ const main = () => {
     return;
   }
 
-  let delta = 1;
+  let iterations = 1;
 
   const runFlag = true;
 
@@ -360,6 +318,8 @@ const main = () => {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, textures[0]);
     gl.uniform1i(programLocations.texture, 0);
+    gl.uniform1i(programLocations.iterations, iterations);
+    gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
 
     gl.bindVertexArray(shaderVao);
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
@@ -392,9 +352,9 @@ const main = () => {
     // tick ----------------------------------------------
     gl.flush();
 
-    delta++;
+    iterations++;
 
-    if (runFlag && delta < 10) {
+    if (runFlag) {
       requestAnimationFrame(loop);
     }
   };

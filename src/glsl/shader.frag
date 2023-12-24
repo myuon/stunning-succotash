@@ -3,7 +3,7 @@
 precision highp float;
 
 uniform sampler2D u_texture;
-uniform int delta;
+uniform int iterations;
 uniform vec2 resolution;
 
 in vec2 v_texcoord;
@@ -139,15 +139,17 @@ void main(void){
     vec3 cSide = cross(cDir, cUp);
     
     int count = 0;
-    int spp = 8;
+    int spp = 1;
     vec3 color = vec3(0.0);
     for (int i = 0; i < spp; i++) {
-        vec2 dp = vec2(rand(gl_FragCoord.xy + vec2(i,delta)), rand(gl_FragCoord.xy + vec2(delta,i)));
+        vec2 dp = vec2(rand(gl_FragCoord.xy + vec2(i,iterations)), rand(gl_FragCoord.xy + vec2(iterations,i)));
         vec2 p = ((gl_FragCoord.xy + dp) * 2.0 - resolution) / min(resolution.x, resolution.y);
         Ray ray = Ray(cPos, normalize(vec3(sin(fov) * p.x, sin(fov) * p.y, -cos(fov))));
 
         color += raytrace(ray, count);
     }
 
-    outColor = texture(u_texture, v_texcoord) + vec4(color / float(spp), 1.0);
+    vec4 prev = texture(u_texture, v_texcoord);
+
+    outColor = ((float(iterations - 1) * prev) + vec4(color / float(spp), 1.0)) / float(iterations);
 }
