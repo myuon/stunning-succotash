@@ -337,7 +337,7 @@ const main = () => {
       const dy = e.clientY - prevMousePosition[1];
 
       angleX += dy * 0.01;
-      angleY -= dx * 0.01;
+      angleY += dx * 0.01;
 
       angleX = Math.max(Math.min(angleX, Math.PI / 2), -Math.PI / 2);
       angleY = angleY % (Math.PI * 2);
@@ -368,6 +368,47 @@ const main = () => {
         gl.bindTexture(gl.TEXTURE_2D, null);
       });
 
+      iterations = 1;
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "w") {
+      camera.position = [
+        camera.position[0] + camera.direction[0],
+        camera.position[1] + camera.direction[1],
+        camera.position[2] + camera.direction[2],
+      ];
+      iterations = 1;
+    } else if (e.key === "s") {
+      camera.position = [
+        camera.position[0] - camera.direction[0],
+        camera.position[1] - camera.direction[1],
+        camera.position[2] - camera.direction[2],
+      ];
+      iterations = 1;
+    } else if (e.key === "a") {
+      const right = [
+        camera.direction[1] * camera.up[2] - camera.direction[2] * camera.up[1],
+        camera.direction[2] * camera.up[0] - camera.direction[0] * camera.up[2],
+        camera.direction[0] * camera.up[1] - camera.direction[1] * camera.up[0],
+      ];
+      camera.position = [
+        camera.position[0] - right[0],
+        camera.position[1] - right[1],
+        camera.position[2] - right[2],
+      ];
+      iterations = 1;
+    } else if (e.key === "d") {
+      const right = [
+        camera.direction[1] * camera.up[2] - camera.direction[2] * camera.up[1],
+        camera.direction[2] * camera.up[0] - camera.direction[0] * camera.up[2],
+        camera.direction[0] * camera.up[1] - camera.direction[1] * camera.up[0],
+      ];
+      camera.position = [
+        camera.position[0] + right[0],
+        camera.position[1] + right[1],
+        camera.position[2] + right[2],
+      ];
       iterations = 1;
     }
   });

@@ -128,7 +128,7 @@ vec3 sample_lambertian_cosine_pdf(vec3 normal) {
 
 vec3 raytrace(Ray ray) {
     vec3 color = vec3(0.0);
-    float alpha = 1.0;
+    vec3 weight = vec3(1.0);
     int count = 0;
 
     while (count < 150) {
@@ -138,12 +138,9 @@ vec3 raytrace(Ray ray) {
         }
 
         // for debug:
-        return objects[hit.index].color + objects[hit.index].emission;
+        // return objects[hit.index].color + objects[hit.index].emission;
 
-        color += vec3(objects[hit.index].emission * alpha);
-        color *= objects[hit.index].color;
-
-        alpha *= 0.9;
+        color += objects[hit.index].emission * weight;
 
         float russian_roulette_threshold = 0.5;
         if (count < 5) {
@@ -153,17 +150,17 @@ vec3 raytrace(Ray ray) {
             russian_roulette_threshold *= pow(0.5, float(count - 5));
         }
 
-        if (rand(vec2(hit.point.x + hit.point.y, hit.point.z + alpha)) >= russian_roulette_threshold) {
+        if (rand(vec2(hit.point.x + hit.point.y, hit.point.z + max(max(weight.r, weight.g), weight.b))) >= russian_roulette_threshold) {
             return color;
         }
 
         ray.direction = sample_lambertian_cosine_pdf(hit.normal);
         ray.origin = hit.point + ray.direction * kEPS;
-        alpha *= 1.0 / russian_roulette_threshold;
+        weight *= objects[hit.index].color * 1.0 / russian_roulette_threshold;
         count++;
     }
 
-    return vec3(0.0, 0.0, 0.0);
+    return vec3(1.0, 0.0, 1.0);
 }
 
 struct Camera {
@@ -185,7 +182,7 @@ void main(void){
     int spp = 1;
     vec3 color = vec3(0.0);
     for (int i = 0; i < spp; i++) {
-        vec2 dp = vec2(rand(vec2(float(i), 0.0)), rand(vec2(float(i), 1.0)));
+        vec2 dp = vec2(rand(vec2(gl_FragCoord.x + float(i + iterations), gl_FragCoord.y)), rand(vec2(gl_FragCoord.x, gl_FragCoord.xy + float(i + iterations))));
         vec2 p = (((gl_FragCoord.xy + dp - vec2(0.5)) * 2.0) - resolution.xy) / min(resolution.x, resolution.y);
 
         vec3 screen_p = screen_origin + screen_x * p.x + screen_y * p.y;
