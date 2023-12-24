@@ -172,7 +172,7 @@ struct Camera {
 
 void main(void){
     Camera camera = Camera(camera_position, normalize(camera_up), normalize(camera_direction), screen_dist);
-    float screen_width = 30.0 * resolution.x / resolution.y;
+    float screen_width = 30.0;
     float screen_height = 30.0;
 
     vec3 screen_x = normalize(cross(camera.direction, camera.up)) * screen_width;
@@ -186,7 +186,7 @@ void main(void){
         vec2 p = (((gl_FragCoord.xy + dp - vec2(0.5)) * 2.0) - resolution.xy) / min(resolution.x, resolution.y);
 
         vec3 screen_p = screen_origin + screen_x * p.x + screen_y * p.y;
-        Ray ray = Ray(screen_p, normalize(screen_p - camera.origin));
+        Ray ray = Ray(camera.origin, normalize(screen_p - camera.origin));
 
         color += raytrace(ray);
     }
