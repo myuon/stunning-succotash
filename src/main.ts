@@ -336,6 +336,7 @@ const main = () => {
     );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.bindTexture(gl.TEXTURE_2D, null);
 
     return tex;
   });
@@ -345,94 +346,44 @@ const main = () => {
     console.error("Failed to create frameBuffer");
     return;
   }
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-  gl.framebufferTexture2D(
-    gl.FRAMEBUFFER,
-    gl.COLOR_ATTACHMENT0,
-    gl.TEXTURE_2D,
-    textures[0],
-    0
-  );
-
-  diagnoseFramebuffer(gl);
-
-  const copyFbo = gl.createFramebuffer();
-  if (!copyFbo) {
-    console.error("Failed to create frameBuffer");
-    return;
-  }
-  gl.bindFramebuffer(gl.FRAMEBUFFER, copyFbo);
-  gl.framebufferTexture2D(
-    gl.FRAMEBUFFER,
-    gl.COLOR_ATTACHMENT0,
-    gl.TEXTURE_2D,
-    textures[1],
-    0
-  );
 
   let delta = 1;
 
   const runFlag = true;
 
   const loop = () => {
-    // render to framebuffer -----------------------------
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-    gl.bindTexture(gl.TEXTURE_2D, textures[1]);
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    // render --------------------------------------------
+    gl.useProgram(program);
 
-    gl.clearColor(0.0, 0.0, 1.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // draw
-    {
-      gl.useProgram(program);
-      gl.bindVertexArray(shaderVao);
-      gl.uniform1i(programLocations.texture, 0);
-      gl.uniform1i(programLocations.delta, delta);
-      gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
-      gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-    }
-
-    if (!runFlag) {
-      diagnoseGlError(gl);
-    }
-
-    // render to canvas ----------------------------------
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    gl.viewport(0, 0, canvas.width, canvas.height);
-
-    gl.clearColor(1.0, 0.0, 0.0, 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    // draw
-    {
-      gl.useProgram(rendererProgram);
-      gl.bindVertexArray(rendererVao);
-      gl.uniform1i(rendererProgramLocations.texture, 0);
-      gl.uniform1f(rendererProgramLocations.sppInv, 1.0 / delta);
-      gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-    }
-
-    if (!runFlag) {
-      diagnoseGlError(gl);
-    }
-
-    // transfer texture ----------------------------------
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, copyFbo);
+    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, textures[0]);
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform1i(programLocations.texture, 0);
 
-    gl.clearColor(0.0, 1.0, 0.0, 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.bindVertexArray(shaderVao);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      textures[1],
+      0
+    );
 
-    // draw
-    {
-      gl.useProgram(copyProgram);
-      gl.bindVertexArray(copyVao);
-      gl.uniform1i(copyProgramLocations.texture, 0);
-      gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-    }
+    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    textures.reverse();
+
+    // renderer ------------------------------------------
+    gl.useProgram(rendererProgram);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, textures[0]);
+    gl.uniform1i(rendererProgramLocations.texture, 0);
+
+    gl.bindVertexArray(rendererVao);
+    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 
     if (!runFlag) {
       diagnoseGlError(gl);
