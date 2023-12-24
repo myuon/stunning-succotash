@@ -8,5 +8,6 @@ out vec4 outColor;
 
 void main(){
     vec3 color = texture(u_texture, v_texcoord).xyz;
-    outColor = vec4(color, 1.0);
+    // gamma correction
+    outColor = vec4(pow(color, vec3(0.4545)), 1.0);
 }
