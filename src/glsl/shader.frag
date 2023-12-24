@@ -137,9 +137,9 @@ void main(void){
     vec3 cDir = vec3(0.0,  0.0, -1.0);
     vec3 cUp  = vec3(0.0,  1.0,  0.0);
     vec3 cSide = cross(cDir, cUp);
-    
+
     int count = 0;
-    int spp = 1;
+    int spp = 64;
     vec3 color = vec3(0.0);
     for (int i = 0; i < spp; i++) {
         vec2 dp = vec2(rand(gl_FragCoord.xy + vec2(i,iterations)), rand(gl_FragCoord.xy + vec2(iterations,i)));

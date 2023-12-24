@@ -184,7 +184,8 @@ const diagnoseGlError = (gl: WebGL2RenderingContext) => {
 };
 
 const main = () => {
-  const canvas = document.querySelector("#glcanvas")! as HTMLCanvasElement;
+  const output = document.getElementById("output")! as HTMLDivElement;
+  const canvas = document.getElementById("glcanvas")! as HTMLCanvasElement;
   const gl = canvas.getContext("webgl2");
   if (!gl) {
     console.error("Failed to get WebGL context");
@@ -357,6 +358,8 @@ const main = () => {
     if (runFlag) {
       requestAnimationFrame(loop);
     }
+
+    output.innerHTML = `iterations: ${iterations}`;
   };
   loop();
 };
