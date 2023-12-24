@@ -47,7 +47,7 @@ const Sphere[] objects = Sphere[](
     Sphere(vec3(-0.577, 0.577, 0.577), 0.1, vec3(25.0), vec3(0.75, 0.25, 0.25), Diffuse),
     Sphere(vec3(0.577, 0.577, 0.577), 0.1, vec3(25.0), vec3(0.25, 0.75, 0.25), Diffuse),
     Sphere(vec3(0.0, 0.0, -2.0), 1.0, vec3(0.0), vec3(0.75, 0.75, 0.75), Diffuse),
-    Sphere(vec3(0.0, 0.0, 0.0), 2.0, vec3(0.0), vec3(0.75, 0.75, 0.75), Diffuse)
+    Sphere(vec3(0.0, 0.0, 0.0), 1000.0, vec3(0.0), vec3(0.75, 0.75, 0.75), Diffuse)
 );
 
 struct Hit {
@@ -75,7 +75,12 @@ Hit intersect(Ray ray){
                 dist = t1;
                 hit.index = i;
                 hit.point = ray.origin + ray.direction * t1;
-                hit.normal = normalize(hit.point - obj.center);
+
+                vec3 normal = normalize(hit.point - obj.center);
+                vec3 orienting_normal = dot(normal, ray.direction) < 0.0 ? normal : -normal;
+
+                hit.normal = orienting_normal;
+                continue;
             }
 
             float t2 = b + sqrt(d);
@@ -83,7 +88,12 @@ Hit intersect(Ray ray){
                 dist = t2;
                 hit.index = i;
                 hit.point = ray.origin + ray.direction * t2;
-                hit.normal = normalize(hit.point - obj.center);
+
+                vec3 normal = normalize(hit.point - obj.center);
+                vec3 orienting_normal = dot(normal, ray.direction) < 0.0 ? normal : -normal;
+
+                hit.normal = orienting_normal;
+                continue;
             }
         }
     }
@@ -106,11 +116,12 @@ vec3 sample_lambertian_cosine_pdf(vec3 normal) {
     return normalize(u * cos(r1) * cos_r2 + v * sin(r1) * cos_r2 + w * sqrt(1.0 - cos_r2 * cos_r2));
 }
 
-vec3 raytrace(Ray ray, int count) {
+vec3 raytrace(Ray ray) {
     vec3 color = vec3(0.0);
     float alpha = 1.0;
+    int count = 0;
 
-    while (true) {
+    while (count < 150) {
         Hit hit = intersect(ray);
         if (hit.index == -1) {
             return color;
@@ -136,7 +147,10 @@ vec3 raytrace(Ray ray, int count) {
         ray.direction = sample_lambertian_cosine_pdf(hit.normal);
         ray.origin = hit.point + ray.direction * kEPS;
         alpha *= 1.0 / russian_roulette_threshold;
+        count++;
     }
+
+    return vec3(0.0, 0.0, 0.0);
 }
 
 void main(void){
@@ -145,15 +159,14 @@ void main(void){
     vec3 cUp  = vec3(0.0,  1.0,  0.0);
     vec3 cSide = cross(cDir, cUp);
 
-    int count = 0;
-    int spp = 64;
+    int spp = 4;
     vec3 color = vec3(0.0);
     for (int i = 0; i < spp; i++) {
         vec2 dp = vec2(rand(gl_FragCoord.xy + vec2(i,iterations)), rand(gl_FragCoord.xy + vec2(iterations,i)));
         vec2 p = ((gl_FragCoord.xy + dp) * 2.0 - resolution) / min(resolution.x, resolution.y);
         Ray ray = Ray(cPos, normalize(vec3(sin(fov) * p.x, sin(fov) * p.y, -cos(fov))));
 
-        color += raytrace(ray, count);
+        color += raytrace(ray);
     }
 
     vec4 prev = texture(u_texture, v_texcoord);

@@ -358,7 +358,9 @@ const main = () => {
       requestAnimationFrame(loop);
     }
 
-    output.innerHTML = `iterations: ${iterations}`;
+    if (iterations % 10 == 0) {
+      output.innerHTML = `iterations: ${iterations}`;
+    }
   };
   loop();
 };
