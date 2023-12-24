@@ -18,21 +18,41 @@ const float angle = 60.0;
 const float fov = angle * 0.5 * PI / 180.0;
 const float kEPS = 1e-5;
 
-float rand(vec2 p){
-    return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453);
+highp float rand(vec2 co){
+    highp float a = 12.9898;
+    highp float b = 78.233;
+    highp float c = 43758.5453;
+    highp float dt= dot(co.xy ,vec2(a,b));
+    highp float sn= mod(dt,3.14);
+    return fract(sin(sn) * c);
+}
+
+vec3 rand3(vec3 p){
+	vec3 q = vec3(
+		dot(p, vec3(127.1, 311.7, 74.7)),
+		dot(p, vec3(269.5, 183.3, 246.1)),
+		dot(p, vec3(113.5, 271.9, 124.6))
+		);
+
+	return fract(sin(q) * 43758.5453123);
 }
 
 vec3 randOnHemisphere(vec3 n){
-    vec3 u = normalize(cross(n, vec3(0.0, 1.0, 0.0)));
-    vec3 v = normalize(cross(u, n));
-    float r1 = rand(vec2(float(n.x), 0.0));
-    float r2 = rand(vec2(float(n.y), 0.0));
-    float r = sqrt(r1);
-    float theta = 2.0 * PI * r2;
-    float x = r * cos(theta);
-    float y = r * sin(theta);
-    float z = sqrt(1.0 - r1);
-    return u * x + v * y + n * z;
+    vec3 w = n;
+    vec3 u = normalize(cross(vec3(1.0, 0.0, 0.0), w));
+    if (abs(w.x) > kEPS) {
+        u = normalize(cross(vec3(0.0, 1.0, 0.0), w));
+    }
+
+    vec3 v = cross(w, u);
+    vec3 rs = rand3(n);
+    float r1 = rs.x;
+    float r2 = rs.y;
+
+    float phy = 2.0 * PI * r1;
+    float cos_theta = sqrt(1.0 - r2);
+
+    return normalize(u * cos(phy) * cos_theta + v * sin(phy) * cos_theta + w * sqrt(1.0 - cos_theta * cos_theta));
 }
 
 const uint Diffuse = 0u;
@@ -182,7 +202,7 @@ void main(void){
     int spp = 1;
     vec3 color = vec3(0.0);
     for (int i = 0; i < spp; i++) {
-        vec2 dp = vec2(rand(vec2(gl_FragCoord.x + float(i + iterations), gl_FragCoord.y)), rand(vec2(gl_FragCoord.x, gl_FragCoord.xy + float(i + iterations))));
+        vec2 dp = rand3(vec3(gl_FragCoord.xy + vec2(float(iterations)), float(i))).xy;
         vec2 p = (((gl_FragCoord.xy + dp - vec2(0.5)) * 2.0) - resolution.xy) / min(resolution.x, resolution.y);
 
         vec3 screen_p = screen_origin + screen_x * p.x + screen_y * p.y;
