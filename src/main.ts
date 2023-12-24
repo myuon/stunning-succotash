@@ -1,5 +1,6 @@
 import shaderVertSource from "./glsl/shader.vert?raw";
 import shaderFragSource from "./glsl/shader.frag?raw";
+import rendererVertSource from "./glsl/renderer.vert?raw";
 import rendererFragSource from "./glsl/renderer.frag?raw";
 
 const compileShader = (
@@ -193,6 +194,13 @@ const main = () => {
 
   console.log(gl.getExtension("EXT_color_buffer_float")!);
 
+  const camera = {
+    position: [50.0, 52.0, 220.0] as [number, number, number],
+    direction: [0.0, -0.04, -1.0] as [number, number, number],
+    up: [0.0, 1.0, 0.0] as [number, number, number],
+    screen_dist: 80.0,
+  };
+
   const program = createProgramFromSource(
     gl,
     shaderVertSource,
@@ -206,6 +214,10 @@ const main = () => {
     texture: gl.getUniformLocation(program, "u_texture"),
     iterations: gl.getUniformLocation(program, "iterations"),
     resolution: gl.getUniformLocation(program, "resolution"),
+    camera_position: gl.getUniformLocation(program, "camera_position"),
+    camera_direction: gl.getUniformLocation(program, "camera_direction"),
+    camera_up: gl.getUniformLocation(program, "camera_up"),
+    screen_dist: gl.getUniformLocation(program, "screen_dist"),
   };
 
   const shaderVao = createVao(
@@ -238,7 +250,7 @@ const main = () => {
 
   const rendererProgram = createProgramFromSource(
     gl,
-    shaderVertSource,
+    rendererVertSource,
     rendererFragSource
   );
   if (!rendererProgram) return;
@@ -309,6 +321,57 @@ const main = () => {
 
   const runFlag = true;
 
+  let angleX = 0.0;
+  let angleY = 0.0;
+
+  let prevMousePosition: [number, number] | null = null;
+  canvas.addEventListener("mousedown", (e) => {
+    prevMousePosition = [e.clientX, e.clientY];
+  });
+  canvas.addEventListener("mouseup", () => {
+    prevMousePosition = null;
+  });
+  canvas.addEventListener("mousemove", (e) => {
+    if (prevMousePosition) {
+      const dx = e.clientX - prevMousePosition[0];
+      const dy = e.clientY - prevMousePosition[1];
+
+      angleX += dy * 0.01;
+      angleY -= dx * 0.01;
+
+      angleX = Math.max(Math.min(angleX, Math.PI / 2), -Math.PI / 2);
+      angleY = angleY % (Math.PI * 2);
+
+      camera.direction = [
+        Math.cos(angleX) * Math.sin(angleY),
+        Math.sin(angleX),
+        -Math.cos(angleX) * Math.cos(angleY),
+      ];
+
+      prevMousePosition = [e.clientX, e.clientY];
+
+      // clear textures
+      textures.forEach((tex) => {
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          canvas.width,
+          canvas.height,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          null
+        );
+        gl.bindTexture(gl.TEXTURE_2D, null);
+      });
+
+      iterations = 1;
+    }
+  });
+
   const loop = () => {
     // render --------------------------------------------
     gl.useProgram(program);
@@ -320,6 +383,10 @@ const main = () => {
     gl.uniform1i(programLocations.texture, 0);
     gl.uniform1i(programLocations.iterations, iterations);
     gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
+    gl.uniform3fv(programLocations.camera_position, camera.position);
+    gl.uniform3fv(programLocations.camera_direction, camera.direction);
+    gl.uniform3fv(programLocations.camera_up, camera.up);
+    gl.uniform1f(programLocations.screen_dist, camera.screen_dist);
 
     gl.bindVertexArray(shaderVao);
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
@@ -358,7 +425,7 @@ const main = () => {
       requestAnimationFrame(loop);
     }
 
-    if (iterations % 10 == 0) {
+    if (iterations % 25 == 0) {
       output.innerHTML = `iterations: ${iterations}`;
     }
   };

@@ -5,6 +5,10 @@ precision highp float;
 uniform sampler2D u_texture;
 uniform int iterations;
 uniform vec2 resolution;
+uniform vec3 camera_position;
+uniform vec3 camera_direction;
+uniform vec3 camera_up;
+uniform float screen_dist;
 
 in vec2 v_texcoord;
 out vec4 outColor;
@@ -44,10 +48,16 @@ struct Sphere {
 };
 
 const Sphere[] objects = Sphere[](
-    Sphere(vec3(-0.577, 0.577, 0.577), 0.1, vec3(25.0), vec3(0.75, 0.25, 0.25), Diffuse),
-    Sphere(vec3(0.577, 0.577, 0.577), 0.1, vec3(25.0), vec3(0.25, 0.75, 0.25), Diffuse),
-    Sphere(vec3(0.0, 0.0, -2.0), 1.0, vec3(0.0), vec3(0.75, 0.75, 0.75), Diffuse),
-    Sphere(vec3(0.0, 0.0, 0.0), 1000.0, vec3(0.0), vec3(0.75, 0.75, 0.75), Diffuse)
+    Sphere(vec3(1e5 + 1.0, 40.8, 81.6), 1e5, vec3(0.0), vec3(0.75, 0.25, 0.25), Diffuse), // left
+    Sphere(vec3(-1e5 + 99.0, 40.8, 81.6), 1e5, vec3(0.0), vec3(0.25, 0.25, 0.75), Diffuse), // right
+    Sphere(vec3(50.0, 40.8, 1e5), 1e5, vec3(0.0), vec3(0.75), Diffuse), // back
+    Sphere(vec3(50.0, 40.8, -1e5 + 250.0), 1e5, vec3(0.0), vec3(0.0), Diffuse), // front
+    Sphere(vec3(50.0, 1e5, 81.6), 1e5, vec3(0.0), vec3(0.75), Diffuse), // bottom
+    Sphere(vec3(50.0, -1e5 + 81.6, 81.6), 1e5, vec3(0.0), vec3(0.75), Diffuse), // top
+    Sphere(vec3(50.0, 90.0, 81.6), 15.0, vec3(36.0), vec3(0.0), Diffuse), // light
+    Sphere(vec3(65.0, 20.0, 20.0), 20.0, vec3(0.0), vec3(0.25, 0.75, 0.25), Diffuse), // green
+    Sphere(vec3(27.0, 16.5, 47.0), 16.5, vec3(0.0), vec3(0.99, 0.99, 0.99), Specular), // mirror
+    Sphere(vec3(77.0, 16.5, 78.0), 16.5, vec3(0.0), vec3(0.99, 0.99, 0.99), Refractive) // glass
 );
 
 struct Hit {
@@ -127,6 +137,9 @@ vec3 raytrace(Ray ray) {
             return color;
         }
 
+        // for debug:
+        return objects[hit.index].color + objects[hit.index].emission;
+
         color += vec3(objects[hit.index].emission * alpha);
         color *= objects[hit.index].color;
 
@@ -153,18 +166,30 @@ vec3 raytrace(Ray ray) {
     return vec3(0.0, 0.0, 0.0);
 }
 
-void main(void){
-    vec3 cPos = vec3(0.0,  0.0,  2.0);
-    vec3 cDir = vec3(0.0,  0.0, -1.0);
-    vec3 cUp  = vec3(0.0,  1.0,  0.0);
-    vec3 cSide = cross(cDir, cUp);
+struct Camera {
+    vec3 origin;
+    vec3 up;
+    vec3 direction;
+    float screen_dist;
+};
 
-    int spp = 4;
+void main(void){
+    Camera camera = Camera(camera_position, normalize(camera_up), normalize(camera_direction), screen_dist);
+    float screen_width = 30.0 * resolution.x / resolution.y;
+    float screen_height = 30.0;
+
+    vec3 screen_x = normalize(cross(camera.direction, camera.up)) * screen_width;
+    vec3 screen_y = normalize(cross(screen_x, camera.direction)) * screen_height;
+    vec3 screen_origin = camera.origin + camera.direction * camera.screen_dist;
+
+    int spp = 1;
     vec3 color = vec3(0.0);
     for (int i = 0; i < spp; i++) {
-        vec2 dp = vec2(rand(gl_FragCoord.xy + vec2(i,iterations)), rand(gl_FragCoord.xy + vec2(iterations,i)));
-        vec2 p = ((gl_FragCoord.xy + dp) * 2.0 - resolution) / min(resolution.x, resolution.y);
-        Ray ray = Ray(cPos, normalize(vec3(sin(fov) * p.x, sin(fov) * p.y, -cos(fov))));
+        vec2 dp = vec2(rand(vec2(float(i), 0.0)), rand(vec2(float(i), 1.0)));
+        vec2 p = (((gl_FragCoord.xy + dp - vec2(0.5)) * 2.0) - resolution.xy) / min(resolution.x, resolution.y);
+
+        vec3 screen_p = screen_origin + screen_x * p.x + screen_y * p.y;
+        Ray ray = Ray(screen_p, normalize(screen_p - camera.origin));
 
         color += raytrace(ray);
     }
