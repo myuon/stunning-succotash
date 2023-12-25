@@ -9,10 +9,13 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@types/stats.js": "^0.17.3",
     "typescript": "^5.2.2",
     "vite": "^5.0.8"
   },
   "dependencies": {
-    "gl-matrix": "^3.4.3"
+    "gl-matrix": "^3.4.3",
+    "lil-gui": "^0.19.1",
+    "stats.js": "^0.17.0"
   }
 }

@@ -9,6 +9,7 @@ uniform vec3 camera_position;
 uniform vec3 camera_direction;
 uniform vec3 camera_up;
 uniform float screen_dist;
+uniform int spp;
 
 in vec2 v_texcoord;
 out vec4 outColor;
@@ -190,7 +191,6 @@ void main(void){
     vec3 screen_y = normalize(cross(screen_x, camera.direction)) * screen_height;
     vec3 screen_origin = camera.origin + camera.direction * camera.screen_dist;
 
-    int spp = 1;
     vec3 color = vec3(0.0);
     for (int i = 0; i < spp; i++) {
         vec2 dp = rand3(vec3(gl_FragCoord.xy + vec2(float(iterations)), float(i))).xy;

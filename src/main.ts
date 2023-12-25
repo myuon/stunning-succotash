@@ -2,6 +2,8 @@ import shaderVertSource from "./glsl/shader.vert?raw";
 import shaderFragSource from "./glsl/shader.frag?raw";
 import rendererVertSource from "./glsl/renderer.vert?raw";
 import rendererFragSource from "./glsl/renderer.frag?raw";
+import GUI from "lil-gui";
+import Stats from "stats.js";
 
 const compileShader = (
   gl: WebGL2RenderingContext,
@@ -218,6 +220,7 @@ const main = () => {
     camera_direction: gl.getUniformLocation(program, "camera_direction"),
     camera_up: gl.getUniformLocation(program, "camera_up"),
     screen_dist: gl.getUniformLocation(program, "screen_dist"),
+    spp: gl.getUniformLocation(program, "spp"),
   };
 
   const shaderVao = createVao(
@@ -319,8 +322,6 @@ const main = () => {
 
   let iterations = 1;
 
-  const runFlag = true;
-
   let angleX = 0.0;
   let angleY = 0.0;
 
@@ -413,64 +414,89 @@ const main = () => {
     }
   });
 
+  const stats = new Stats();
+  stats.showPanel(0);
+  document.body.appendChild(stats.dom);
+
+  const gui = new GUI();
+  const value = {
+    tick: true,
+    spp: 1,
+  };
+  gui.add(value, "tick").onChange((v: boolean) => {
+    value.tick = v;
+  });
+  gui
+    .add(value, "spp", [1, 2, 4, 8, 16, 32, 64, 128, 256])
+    .onChange((v: number) => {
+      iterations = 1;
+      value.spp = v;
+    });
+
   const loop = () => {
-    // render --------------------------------------------
-    gl.useProgram(program);
+    stats.begin();
 
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (value.tick || iterations < 5) {
+      // render --------------------------------------------
+      gl.useProgram(program);
 
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, textures[0]);
-    gl.uniform1i(programLocations.texture, 0);
-    gl.uniform1i(programLocations.iterations, iterations);
-    gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
-    gl.uniform3fv(programLocations.camera_position, camera.position);
-    gl.uniform3fv(programLocations.camera_direction, camera.direction);
-    gl.uniform3fv(programLocations.camera_up, camera.up);
-    gl.uniform1f(programLocations.screen_dist, camera.screen_dist);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    gl.bindVertexArray(shaderVao);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-    gl.framebufferTexture2D(
-      gl.FRAMEBUFFER,
-      gl.COLOR_ATTACHMENT0,
-      gl.TEXTURE_2D,
-      textures[1],
-      0
-    );
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, textures[0]);
+      gl.uniform1i(programLocations.texture, 0);
+      gl.uniform1i(programLocations.iterations, iterations);
+      gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
+      gl.uniform3fv(programLocations.camera_position, camera.position);
+      gl.uniform3fv(programLocations.camera_direction, camera.direction);
+      gl.uniform3fv(programLocations.camera_up, camera.up);
+      gl.uniform1f(programLocations.screen_dist, camera.screen_dist);
+      gl.uniform1i(programLocations.spp, value.spp);
 
-    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.bindVertexArray(shaderVao);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT0,
+        gl.TEXTURE_2D,
+        textures[1],
+        0
+      );
 
-    textures.reverse();
+      gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-    // renderer ------------------------------------------
-    gl.useProgram(rendererProgram);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, textures[0]);
-    gl.uniform1i(rendererProgramLocations.texture, 0);
+      textures.reverse();
 
-    gl.bindVertexArray(rendererVao);
-    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+      // renderer ------------------------------------------
+      gl.useProgram(rendererProgram);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, textures[0]);
+      gl.uniform1i(rendererProgramLocations.texture, 0);
 
-    if (!runFlag) {
-      diagnoseGlError(gl);
+      gl.bindVertexArray(rendererVao);
+      gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+      if (!value.tick) {
+        diagnoseGlError(gl);
+      }
+
+      // tick ----------------------------------------------
+      gl.flush();
+
+      iterations++;
     }
 
-    // tick ----------------------------------------------
-    gl.flush();
+    stats.end();
 
-    iterations++;
-
-    if (runFlag) {
-      requestAnimationFrame(loop);
-    }
+    requestAnimationFrame(loop);
 
     if (iterations % 25 == 0) {
       output.innerHTML = `iterations: ${iterations}`;
     }
   };
-  loop();
+
+  requestAnimationFrame(loop);
 };
 
 main();
