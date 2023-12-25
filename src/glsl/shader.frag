@@ -140,8 +140,17 @@ vec3 raytrace(Ray ray) {
             return color;
         }
 
-        // for debug:
+        vec3 orienting_normal = dot(hit.normal, ray.direction) < 0.0 ? hit.normal : -hit.normal;
+        // for debugging normal:
+        // return orienting_normal;
+
+        // for debugging color:
         // return objects[hit.index].color + objects[hit.index].emission;
+
+        // if (count == 1) {
+        //     // return hit.normal;
+        //     // return objects[hit.index].emission;
+        // }
 
         color += objects[hit.index].emission * weight;
 
@@ -159,7 +168,7 @@ vec3 raytrace(Ray ray) {
             return color;
         }
 
-        ray.direction = randOnHemisphere(hit.normal, seed);
+        ray.direction = randOnHemisphere(orienting_normal, seed);
         ray.origin = hit.point + ray.direction * kEPS;
         weight *= objects[hit.index].color * 1.0 / russian_roulette_threshold;
         count++;
