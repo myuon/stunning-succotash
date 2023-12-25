@@ -2,5 +2,5 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [],
-  base: import.meta.PROD ? "/webgl-path-tracer/" : "/",
+  base: process.env.NODE_ENV === "production" ? "/webgl-path-tracer/" : "/",
 });
