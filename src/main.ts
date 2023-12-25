@@ -337,7 +337,7 @@ const main = () => {
       const dy = e.clientY - prevMousePosition[1];
 
       angleX += dy * 0.01;
-      angleY += dx * 0.01;
+      angleY -= dx * 0.01;
 
       angleX = Math.max(Math.min(angleX, Math.PI / 2), -Math.PI / 2);
       angleY = angleY % (Math.PI * 2);
