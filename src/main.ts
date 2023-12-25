@@ -131,6 +131,7 @@ const createVao = (
   return vao;
 };
 
+// @ts-ignore
 const diagnoseFramebuffer = (gl: WebGL2RenderingContext) => {
   const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
   switch (status) {
@@ -155,6 +156,7 @@ const diagnoseFramebuffer = (gl: WebGL2RenderingContext) => {
   }
 };
 
+// @ts-ignore
 const diagnoseGlError = (gl: WebGL2RenderingContext) => {
   const error = gl.getError();
   switch (error) {
