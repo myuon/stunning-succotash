@@ -102,27 +102,27 @@ Hit intersect(Ray ray){
             continue;
         }
 
-            float t1 = b - sqrt(d);
+        float t1 = b - sqrt(d);
         float t2 = b + sqrt(d);
         if (t1 < kEPS && t2 < kEPS) {
             continue;
         }
 
-            if(t1 > kEPS && t1 < dist){
-                dist = t1;
-                hit.index = i;
-                hit.point = ray.origin + ray.direction * t1;
-            hit.normal = normalize(hit.point - obj.center);
-                continue;
-            }
+        if(t1 > kEPS && t1 < dist){
+            dist = t1;
+            hit.index = i;
+            hit.point = ray.origin + ray.direction * t1;
+        hit.normal = normalize(hit.point - obj.center);
+            continue;
+        }
 
-            if(t2 > kEPS && t2 < dist){
-                dist = t2;
-                hit.index = i;
-                hit.point = ray.origin + ray.direction * t2;
-            hit.normal = normalize(hit.point - obj.center);
+        if(t2 > kEPS && t2 < dist){
+            dist = t2;
+            hit.index = i;
+            hit.point = ray.origin + ray.direction * t2;
+        hit.normal = normalize(hit.point - obj.center);
 
-                continue;
+            continue;
         }
     }
 
