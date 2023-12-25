@@ -15,8 +15,7 @@ out vec4 outColor;
 
 const float PI = 3.14159265;
 const float angle = 60.0;
-const float fov = angle * 0.5 * PI / 180.0;
-const float kEPS = 1e-5;
+const float kEPS = 1e-2;
 
 highp float rand(vec2 co){
     highp float a = 12.9898;
