@@ -49,9 +49,9 @@ vec3 randOnHemisphere(vec3 n, float seed){
     float r2 = rand(vec2(seed, 1.0) + n.yz);
 
     float phy = 2.0 * PI * r1;
-    float cos_theta = sqrt(1.0 - r2);
+    float cos_theta = sqrt(r2);
 
-    return normalize(u * cos(phy) * cos_theta + v * sin(phy) * cos_theta + w * sqrt(1.0 - cos_theta * cos_theta));
+    return normalize(u * cos(phy) * cos_theta + v * sin(phy) * cos_theta + w * sqrt(1.0 - r2));
 }
 
 const uint Diffuse = 0u;
