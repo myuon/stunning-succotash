@@ -91,39 +91,38 @@ struct Ray {
 };
 
 Hit intersect(Ray ray){
-    float dist = 10000.0;
+    float dist = 1000000.0;
     Hit hit = Hit(-1, vec3(0.0), vec3(0.0));
     for(int i = 0; i < objects.length(); i++){
         Sphere obj = objects[i];
         float b = dot(ray.direction, obj.center - ray.origin);
         float c = dot(obj.center - ray.origin, obj.center - ray.origin) - obj.radius * obj.radius;
         float d = b * b - c;
-        if(d > kEPS){
+        if (d < 0.0) {
+            continue;
+        }
+
             float t1 = b - sqrt(d);
+        float t2 = b + sqrt(d);
+        if (t1 < kEPS && t2 < kEPS) {
+            continue;
+        }
+
             if(t1 > kEPS && t1 < dist){
                 dist = t1;
                 hit.index = i;
                 hit.point = ray.origin + ray.direction * t1;
-
-                vec3 normal = normalize(hit.point - obj.center);
-                vec3 orienting_normal = dot(normal, ray.direction) < 0.0 ? normal : -normal;
-
-                hit.normal = orienting_normal;
+            hit.normal = normalize(hit.point - obj.center);
                 continue;
             }
 
-            float t2 = b + sqrt(d);
             if(t2 > kEPS && t2 < dist){
                 dist = t2;
                 hit.index = i;
                 hit.point = ray.origin + ray.direction * t2;
+            hit.normal = normalize(hit.point - obj.center);
 
-                vec3 normal = normalize(hit.point - obj.center);
-                vec3 orienting_normal = dot(normal, ray.direction) < 0.0 ? normal : -normal;
-
-                hit.normal = orienting_normal;
                 continue;
-            }
         }
     }
 
