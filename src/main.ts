@@ -264,6 +264,7 @@ const main = () => {
     position: gl.getAttribLocation(rendererProgram, "position"),
     texcoord: gl.getAttribLocation(rendererProgram, "a_texcoord"),
     texture: gl.getUniformLocation(rendererProgram, "u_texture"),
+    iterations: gl.getUniformLocation(rendererProgram, "iterations"),
   };
 
   const rendererVao = createVao(
@@ -301,12 +302,12 @@ const main = () => {
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.RGBA,
+      gl.RGBA32F,
       canvas.width,
       canvas.height,
       0,
       gl.RGBA,
-      gl.UNSIGNED_BYTE,
+      gl.FLOAT,
       null
     );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -475,6 +476,7 @@ const main = () => {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, textures[0]);
       gl.uniform1i(rendererProgramLocations.texture, 0);
+      gl.uniform1i(rendererProgramLocations.iterations, iterations);
 
       gl.bindVertexArray(rendererVao);
       gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);

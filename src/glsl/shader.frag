@@ -205,5 +205,5 @@ void main(void){
     vec4 prev = texture(u_texture, v_texcoord);
     vec4 current = vec4(color / float(spp), 1.0);
 
-    outColor = ((float(iterations - 1) * prev) + current) / float(iterations);
+    outColor = prev + current;
 }
