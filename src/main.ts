@@ -317,6 +317,28 @@ const main = () => {
     return tex;
   });
 
+  const reset = () => {
+    // clear textures
+    textures.forEach((tex) => {
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA32F,
+        canvas.width,
+        canvas.height,
+        0,
+        gl.RGBA,
+        gl.FLOAT,
+        null
+      );
+      gl.bindTexture(gl.TEXTURE_2D, null);
+    });
+
+    iterations = 1;
+  };
+
   const fbo = gl.createFramebuffer();
   if (!fbo) {
     console.error("Failed to create frameBuffer");
@@ -353,26 +375,7 @@ const main = () => {
       ];
 
       prevMousePosition = [e.clientX, e.clientY];
-
-      // clear textures
-      textures.forEach((tex) => {
-        gl.bindTexture(gl.TEXTURE_2D, tex);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.texImage2D(
-          gl.TEXTURE_2D,
-          0,
-          gl.RGBA,
-          canvas.width,
-          canvas.height,
-          0,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
-          null
-        );
-        gl.bindTexture(gl.TEXTURE_2D, null);
-      });
-
-      iterations = 1;
+      reset();
     }
   });
   document.addEventListener("keydown", (e) => {
@@ -383,6 +386,7 @@ const main = () => {
         camera.position[2] + camera.direction[2],
       ];
       iterations = 1;
+      reset();
     } else if (e.key === "s") {
       camera.position = [
         camera.position[0] - camera.direction[0],
@@ -390,6 +394,7 @@ const main = () => {
         camera.position[2] - camera.direction[2],
       ];
       iterations = 1;
+      reset();
     } else if (e.key === "a") {
       const right = [
         camera.direction[1] * camera.up[2] - camera.direction[2] * camera.up[1],
@@ -402,6 +407,7 @@ const main = () => {
         camera.position[2] - right[2],
       ];
       iterations = 1;
+      reset();
     } else if (e.key === "d") {
       const right = [
         camera.direction[1] * camera.up[2] - camera.direction[2] * camera.up[1],
@@ -414,6 +420,7 @@ const main = () => {
         camera.position[2] + right[2],
       ];
       iterations = 1;
+      reset();
     }
   });
 
@@ -432,8 +439,8 @@ const main = () => {
   gui
     .add(value, "spp", [1, 2, 4, 8, 16, 32, 64, 128, 256])
     .onChange((v: number) => {
-      iterations = 1;
       value.spp = v;
+      reset();
     });
 
   const loop = () => {
