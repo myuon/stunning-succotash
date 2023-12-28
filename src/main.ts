@@ -4,6 +4,8 @@ import rendererVertSource from "./glsl/renderer.vert?raw";
 import rendererFragSource from "./glsl/renderer.frag?raw";
 import GUI from "lil-gui";
 import Stats from "stats.js";
+import cornellScene from "./scenes/cornell.xml?raw";
+import { loadScene } from "./scene";
 
 const compileShader = (
   gl: WebGL2RenderingContext,
@@ -188,6 +190,8 @@ const diagnoseGlError = (gl: WebGL2RenderingContext) => {
 };
 
 const main = () => {
+  console.log(loadScene(cornellScene));
+
   const output = document.getElementById("output")! as HTMLDivElement;
   const canvas = document.getElementById("glcanvas")! as HTMLCanvasElement;
   const gl = canvas.getContext("webgl2");
