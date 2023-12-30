@@ -77,19 +77,6 @@ struct Sphere {
     uint reflection_type;
 };
 
-const Sphere[] spheres = Sphere[](
-    Sphere(vec3(1e5 + 1.0, 40.8, 81.6), 1e5, vec3(0.0), vec3(0.75, 0.25, 0.25), Diffuse), // left
-    Sphere(vec3(-1e5 + 99.0, 40.8, 81.6), 1e5, vec3(0.0), vec3(0.25, 0.25, 0.75), Diffuse), // right
-    Sphere(vec3(50.0, 40.8, 1e5), 1e5, vec3(0.0), vec3(0.75), Diffuse), // back
-    Sphere(vec3(50.0, 40.8, -1e5 + 250.0), 1e5, vec3(0.0), vec3(0.0), Diffuse), // front
-    Sphere(vec3(50.0, 1e5, 81.6), 1e5, vec3(0.0), vec3(0.75), Diffuse), // bottom
-    Sphere(vec3(50.0, -1e5 + 81.6, 81.6), 1e5, vec3(0.0), vec3(0.75), Diffuse), // top
-    Sphere(vec3(50.0, 90.0, 81.6), 15.0, vec3(36.0), vec3(0.0), Diffuse), // light
-    Sphere(vec3(65.0, 20.0, 20.0), 20.0, vec3(0.0), vec3(0.25, 0.75, 0.25), Diffuse), // green
-    Sphere(vec3(27.0, 16.5, 47.0), 16.5, vec3(0.0), vec3(0.99, 0.99, 0.99), Specular), // mirror
-    Sphere(vec3(77.0, 16.5, 78.0), 16.5, vec3(0.0), vec3(0.99, 0.99, 0.99), Refractive) // glass
-);
-
 struct Triangle {
     vec3 vertex;
     vec3 edge1;
@@ -146,14 +133,36 @@ HitRecord Rectangle_intersect(Rectangle self, Ray ray) {
     return HitRecord(false, vec3(0.0), vec3(0.0));
 }
 
+// SCENE
+
+//! #spheres
+const Sphere[] spheres = Sphere[](
+    Sphere(vec3(1e5 + 1.0, 40.8, 81.6), 1e5, vec3(0.0), vec3(0.75, 0.25, 0.25), Diffuse), // left
+    Sphere(vec3(-1e5 + 99.0, 40.8, 81.6), 1e5, vec3(0.0), vec3(0.25, 0.25, 0.75), Diffuse), // right
+    Sphere(vec3(50.0, 40.8, 1e5), 1e5, vec3(0.0), vec3(0.75), Diffuse), // back
+    Sphere(vec3(50.0, 40.8, -1e5 + 250.0), 1e5, vec3(0.0), vec3(0.0), Diffuse), // front
+    Sphere(vec3(50.0, 1e5, 81.6), 1e5, vec3(0.0), vec3(0.75), Diffuse), // bottom
+    Sphere(vec3(50.0, -1e5 + 81.6, 81.6), 1e5, vec3(0.0), vec3(0.75), Diffuse), // top
+    Sphere(vec3(50.0, 90.0, 81.6), 15.0, vec3(36.0), vec3(0.0), Diffuse), // light
+    Sphere(vec3(65.0, 20.0, 20.0), 20.0, vec3(0.0), vec3(0.25, 0.75, 0.25), Diffuse), // green
+    Sphere(vec3(27.0, 16.5, 47.0), 16.5, vec3(0.0), vec3(0.99, 0.99, 0.99), Specular), // mirror
+    Sphere(vec3(77.0, 16.5, 78.0), 16.5, vec3(0.0), vec3(0.99, 0.99, 0.99), Refractive) // glass
+);
+
+//! #rectangles
+
+const uint TSphere = 0u;
+const uint TRectangle = 1u;
+
 struct HitInScene {
     int index;
+    uint type;
     HitRecord r;
 };
 
 HitInScene intersect(Ray ray){
     float dist = 1000000.0;
-    HitInScene hit = HitInScene(-1, HitRecord(false, vec3(0.0), vec3(0.0)));
+    HitInScene hit = HitInScene(-1, TSphere, HitRecord(false, vec3(0.0), vec3(0.0)));
     for(int i = 0; i < spheres.length(); i++){
         Sphere obj = spheres[i];
         float b = dot(ray.direction, obj.center - ray.origin);
@@ -172,6 +181,7 @@ HitInScene intersect(Ray ray){
         if(t1 > kEPS && t1 < dist){
             dist = t1;
             hit.index = i;
+            hit.type = TSphere;
             hit.r.hit = true;
             hit.r.point = ray.origin + ray.direction * t1;
             hit.r.normal = normalize(hit.r.point - obj.center);
@@ -181,6 +191,7 @@ HitInScene intersect(Ray ray){
         if(t2 > kEPS && t2 < dist){
             dist = t2;
             hit.index = i;
+            hit.type = TSphere;
             hit.r.hit = true;
             hit.r.point = ray.origin + ray.direction * t2;
             hit.r.normal = normalize(hit.r.point - obj.center);
