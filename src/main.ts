@@ -189,6 +189,12 @@ const diagnoseGlError = (gl: WebGL2RenderingContext) => {
   }
 };
 
+const reflectionTypes = {
+  diffuse: 0,
+  specular: 1,
+  refractive: 2,
+};
+
 const main = () => {
   const scene = loadScene(cornellScene);
   const meshes = [];
@@ -265,6 +271,7 @@ const main = () => {
     camera_up: gl.getUniformLocation(program, "camera_up"),
     screen_dist: gl.getUniformLocation(program, "screen_dist"),
     spp: gl.getUniformLocation(program, "spp"),
+    n_spheres: gl.getUniformLocation(program, "n_spheres"),
   };
 
   const shaderVao = createVao(
@@ -485,6 +492,122 @@ const main = () => {
       reset();
     });
 
+  const MAX_N_SPHERES = 100;
+  const spheres = [
+    {
+      center: [1e5 + 1.0, 40.8, 81.6],
+      radius: 1e5,
+      emission: [0.0, 0.0, 0.0],
+      color: [0.75, 0.25, 0.25],
+      reflection: "diffuse",
+    },
+    {
+      center: [-1e5 + 99.0, 40.8, 81.6],
+      radius: 1e5,
+      emission: [0.0, 0.0, 0.0],
+      color: [0.25, 0.25, 0.75],
+      reflection: "diffuse",
+    },
+    {
+      center: [50.0, 40.8, 1e5],
+      radius: 1e5,
+      emission: [0.0, 0.0, 0.0],
+      color: [0.75, 0.75, 0.75],
+      reflection: "diffuse",
+    },
+    {
+      center: [50.0, 40.8, -1e5 + 250.0],
+      radius: 1e5,
+      emission: [0.0, 0.0, 0.0],
+      color: [0.0, 0.0, 0.0],
+      reflection: "diffuse",
+    },
+    {
+      center: [50.0, 1e5, 81.6],
+      radius: 1e5,
+      emission: [0.0, 0.0, 0.0],
+      color: [0.75, 0.75, 0.75],
+      reflection: "diffuse",
+    },
+    {
+      center: [50.0, -1e5 + 81.6, 81.6],
+      radius: 1e5,
+      emission: [0.0, 0.0, 0.0],
+      color: [0.75, 0.75, 0.75],
+      reflection: "diffuse",
+    },
+    {
+      center: [50.0, 90.0, 81.6],
+      radius: 15.0,
+      emission: [36.0, 36.0, 36.0],
+      color: [0.0, 0.0, 0.0],
+      reflection: "diffuse",
+    },
+    {
+      center: [65.0, 20.0, 20.0],
+      radius: 20.0,
+      emission: [0.0, 0.0, 0.0],
+      color: [0.25, 0.75, 0.25],
+      reflection: "diffuse",
+    },
+    {
+      center: [27.0, 16.5, 47.0],
+      radius: 16.5,
+      emission: [0.0, 0.0, 0.0],
+      color: [0.99, 0.99, 0.99],
+      reflection: "specular",
+    },
+    {
+      center: [77.0, 16.5, 78.0],
+      radius: 16.5,
+      emission: [0.0, 0.0, 0.0],
+      color: [0.99, 0.99, 0.99],
+      reflection: "refractive",
+    },
+  ] as const;
+  const sceneData = new Float32Array(
+    Array.from({
+      length: MAX_N_SPHERES,
+    })
+      .map((_, i) => {
+        const sphere = spheres[i] || {
+          center: [0.0, 0.0, 0.0],
+          radius: 0.0,
+          emission: [0.0, 0.0, 0.0],
+          color: [0.0, 0.0, 0.0],
+          reflection: "diffuse",
+        };
+
+        return [
+          ...sphere.center,
+          sphere.radius,
+          ...sphere.emission,
+          0.0, // is this happening because of padding?
+          ...sphere.color,
+          reflectionTypes[sphere.reflection],
+        ];
+      })
+      .flat()
+  );
+
+  gl.uniformBlockBinding(
+    program,
+    gl.getUniformBlockIndex(program, "Spheres"),
+    0
+  );
+
+  const ubo = gl.createBuffer();
+  if (!ubo) {
+    console.error("Failed to create buffer");
+    return;
+  }
+
+  gl.bindBuffer(gl.UNIFORM_BUFFER, ubo);
+  gl.bufferData(gl.UNIFORM_BUFFER, sceneData, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+
+  gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, ubo);
+
   const loop = () => {
     stats.begin();
 
@@ -504,6 +627,7 @@ const main = () => {
       gl.uniform3fv(programLocations.camera_up, camera.up);
       gl.uniform1f(programLocations.screen_dist, camera.screen_dist);
       gl.uniform1i(programLocations.spp, value.spp);
+      gl.uniform1i(programLocations.n_spheres, 10);
 
       gl.bindVertexArray(shaderVao);
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
