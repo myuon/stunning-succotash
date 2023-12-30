@@ -190,7 +190,45 @@ const diagnoseGlError = (gl: WebGL2RenderingContext) => {
 };
 
 const main = () => {
-  console.log(loadScene(cornellScene));
+  const scene = loadScene(cornellScene);
+  const meshes = [];
+  scene.shapes.forEach((shape) => {
+    if (shape.type === "rectangle") {
+      meshes.push({
+        type: "Mesh",
+        triangles: [
+          [
+            [-shape.matrix[0] - shape.matrix[1] + shape.matrix[3]],
+            [-shape.matrix[4] - shape.matrix[5] + shape.matrix[7]],
+            [-shape.matrix[8] - shape.matrix[9] + shape.matrix[11]],
+          ],
+          [
+            [shape.matrix[0] - shape.matrix[1] + shape.matrix[3]],
+            [shape.matrix[4] - shape.matrix[5] + shape.matrix[7]],
+            [shape.matrix[8] - shape.matrix[9] + shape.matrix[11]],
+          ],
+          [
+            [shape.matrix[0] + shape.matrix[1] + shape.matrix[3]],
+            [shape.matrix[4] + shape.matrix[5] + shape.matrix[7]],
+            [shape.matrix[8] + shape.matrix[9] + shape.matrix[11]],
+          ],
+          [
+            [-shape.matrix[0] + shape.matrix[1] + shape.matrix[3]],
+            [-shape.matrix[4] + shape.matrix[5] + shape.matrix[7]],
+            [-shape.matrix[8] + shape.matrix[9] + shape.matrix[11]],
+          ],
+        ],
+        color: [1.0, 1.0, 1.0],
+        emission: [
+          shape.emitter?.radiance[0] ?? 0.0,
+          shape.emitter?.radiance[1] ?? 0.0,
+          shape.emitter?.radiance[2] ?? 0.0,
+        ],
+        reflection: "diffuse",
+      });
+    }
+  });
+  console.log(meshes);
 
   const output = document.getElementById("output")! as HTMLDivElement;
   const canvas = document.getElementById("glcanvas")! as HTMLCanvasElement;

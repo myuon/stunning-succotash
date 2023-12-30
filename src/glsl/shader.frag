@@ -54,6 +54,17 @@ vec3 randOnHemisphere(vec3 n, float seed){
     return normalize(u * cos(phy) * cos_theta + v * sin(phy) * cos_theta + w * sqrt(1.0 - r2));
 }
 
+struct HitRecord {
+    bool hit;
+    vec3 normal;
+    vec3 point;
+};
+
+struct Ray {
+    vec3 origin;
+    vec3 direction;
+};
+
 const uint Diffuse = 0u;
 const uint Specular = 1u;
 const uint Refractive = 2u;
@@ -66,7 +77,7 @@ struct Sphere {
     uint reflection_type;
 };
 
-const Sphere[] objects = Sphere[](
+const Sphere[] spheres = Sphere[](
     Sphere(vec3(1e5 + 1.0, 40.8, 81.6), 1e5, vec3(0.0), vec3(0.75, 0.25, 0.25), Diffuse), // left
     Sphere(vec3(-1e5 + 99.0, 40.8, 81.6), 1e5, vec3(0.0), vec3(0.25, 0.25, 0.75), Diffuse), // right
     Sphere(vec3(50.0, 40.8, 1e5), 1e5, vec3(0.0), vec3(0.75), Diffuse), // back
@@ -79,22 +90,72 @@ const Sphere[] objects = Sphere[](
     Sphere(vec3(77.0, 16.5, 78.0), 16.5, vec3(0.0), vec3(0.99, 0.99, 0.99), Refractive) // glass
 );
 
-struct Hit {
+struct Triangle {
+    vec3 vertex;
+    vec3 edge1;
+    vec3 edge2;
+};
+
+float det(vec3 a, vec3 b, vec3 c) {
+    return a.x * b.y * c.z + a.y * b.z * c.x + a.z * b.x * c.y
+        - a.z * b.y * c.x - a.y * b.x * c.z - a.x * b.z * c.y;
+}
+
+HitRecord Triangle_intersect(Triangle self, Ray ray) {
+    float d = det(self.edge1, self.edge2, -ray.direction);
+    if (abs(d) < kEPS) {
+        return HitRecord(false, vec3(0.0), vec3(0.0));
+    }
+
+    vec3 ov = ray.origin - self.vertex;
+
+    float u = det(ov, self.edge2, -ray.direction) / d;
+    float v = det(self.edge1, ov, -ray.direction) / d;
+    float t = det(self.edge1, self.edge2, ov) / d;
+    if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0 || u + v > 1.0 || t < kEPS) {
+        return HitRecord(false, vec3(0.0), vec3(0.0));
+    }
+
+    return HitRecord(true, normalize(cross(self.edge1, self.edge2)), ray.origin + ray.direction * t);
+}
+
+struct Rectangle {
+    Triangle[2] mesh;
+    vec3 emission;
+    vec3 color;
+    uint reflection_type;
+};
+
+Rectangle Rectangle_new(vec3[4] points, vec3 emission, vec3 color, uint reflection_type) {
+    Triangle[2] mesh = Triangle[](
+        Triangle(points[0], points[1] - points[0], points[2] - points[0]),
+        Triangle(points[0], points[3] - points[0], points[2] - points[0])
+    );
+
+    return Rectangle(mesh, emission, color, reflection_type);
+}
+
+HitRecord Rectangle_intersect(Rectangle self, Ray ray) {
+    for (int i = 0; i < self.mesh.length(); i++) {
+        HitRecord hit = Triangle_intersect(self.mesh[i], ray);
+        if (hit.hit && dot(hit.normal, ray.direction) > 0.0) {
+            return hit;
+        }
+    }
+
+    return HitRecord(false, vec3(0.0), vec3(0.0));
+}
+
+struct HitInScene {
     int index;
-    vec3 normal;
-    vec3 point;
+    HitRecord r;
 };
 
-struct Ray {
-    vec3 origin;
-    vec3 direction;
-};
-
-Hit intersect(Ray ray){
+HitInScene intersect(Ray ray){
     float dist = 1000000.0;
-    Hit hit = Hit(-1, vec3(0.0), vec3(0.0));
-    for(int i = 0; i < objects.length(); i++){
-        Sphere obj = objects[i];
+    HitInScene hit = HitInScene(-1, HitRecord(false, vec3(0.0), vec3(0.0)));
+    for(int i = 0; i < spheres.length(); i++){
+        Sphere obj = spheres[i];
         float b = dot(ray.direction, obj.center - ray.origin);
         float c = dot(obj.center - ray.origin, obj.center - ray.origin) - obj.radius * obj.radius;
         float d = b * b - c;
@@ -111,16 +172,18 @@ Hit intersect(Ray ray){
         if(t1 > kEPS && t1 < dist){
             dist = t1;
             hit.index = i;
-            hit.point = ray.origin + ray.direction * t1;
-        hit.normal = normalize(hit.point - obj.center);
+            hit.r.hit = true;
+            hit.r.point = ray.origin + ray.direction * t1;
+            hit.r.normal = normalize(hit.r.point - obj.center);
             continue;
         }
 
         if(t2 > kEPS && t2 < dist){
             dist = t2;
             hit.index = i;
-            hit.point = ray.origin + ray.direction * t2;
-        hit.normal = normalize(hit.point - obj.center);
+            hit.r.hit = true;
+            hit.r.point = ray.origin + ray.direction * t2;
+            hit.r.normal = normalize(hit.r.point - obj.center);
 
             continue;
         }
@@ -135,24 +198,24 @@ vec3 raytrace(Ray ray) {
     int count = 0;
 
     while (true) {
-        Hit hit = intersect(ray);
+        HitInScene hit = intersect(ray);
         if (hit.index == -1) {
             return color;
         }
 
-        vec3 orienting_normal = dot(hit.normal, ray.direction) < 0.0 ? hit.normal : -hit.normal;
+        vec3 orienting_normal = dot(hit.r.normal, ray.direction) < 0.0 ? hit.r.normal : -hit.r.normal;
         // for debugging normal:
         // return orienting_normal;
 
         // for debugging color:
-        // return objects[hit.index].color + objects[hit.index].emission;
+        // return spheres[hit.index].color + spheres[hit.index].emission;
 
         // if (count == 1) {
         //     // return hit.normal;
-        //     // return objects[hit.index].emission;
+        //     // return spheres[hit.index].emission;
         // }
 
-        color += objects[hit.index].emission * weight;
+        color += spheres[hit.index].emission * weight;
 
         float russian_roulette_threshold = 0.5;
         if (count < 5) {
@@ -162,15 +225,15 @@ vec3 raytrace(Ray ray) {
             russian_roulette_threshold *= pow(0.5, float(count - 5));
         }
 
-        float seed = float(iterations) + float(count) + rand(hit.point.xy);
+        float seed = float(iterations) + float(count) + rand(hit.r.point.xy);
         float r = rand(vec2(seed, 0.0));
         if (r >= russian_roulette_threshold) {
             return color;
         }
 
         ray.direction = randOnHemisphere(orienting_normal, seed);
-        ray.origin = hit.point + ray.direction * kEPS;
-        weight *= objects[hit.index].color * 1.0 / russian_roulette_threshold;
+        ray.origin = hit.r.point + ray.direction * kEPS;
+        weight *= spheres[hit.index].color * 1.0 / russian_roulette_threshold;
         count++;
     }
 }
