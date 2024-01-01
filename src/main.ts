@@ -349,7 +349,6 @@ const main = () => {
     ),
     screen_dist: 15 / Math.tan((19.5 * 2 * Math.PI) / 360 / 2),
   };
-  console.log(camera);
 
   const program = createProgramFromSource(
     gl,
@@ -767,7 +766,6 @@ const main = () => {
       })
       .flat()
   );
-  console.log(shapes);
 
   gl.uniformBlockBinding(
     program,
