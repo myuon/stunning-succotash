@@ -240,7 +240,7 @@ const main = () => {
             -shape.matrix[8] + shape.matrix[9] + shape.matrix[11],
           ],
         ],
-        color: [1.0, 1.0, 1.0],
+        color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
         emission: [
           shape.emitter?.radiance[0] ?? 0.0,
           shape.emitter?.radiance[1] ?? 0.0,

@@ -21,7 +21,7 @@ export const loadScene = (xml: string) => {
   const xmlDoc = parser.parseFromString(xml, "text/xml");
 
   const parseRgb = (element: Element): [number, number, number] => {
-    const rgb = element.getAttribute("value")!.split(" ");
+    const rgb = element.getAttribute("value")!.split(",");
     return [parseFloat(rgb[0]), parseFloat(rgb[1]), parseFloat(rgb[2])];
   };
   const parseBsdf = (element: Element): DeepPartial<Shape["bsdf"]> => {
