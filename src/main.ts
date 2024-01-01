@@ -199,6 +199,18 @@ const subtractVec3 = (
   return [ax - bx, ay - by, az - bz];
 };
 
+const applyMat4 = (
+  mat: number[],
+  vec: [number, number, number, number]
+): [number, number, number, number] => {
+  return [
+    vec[0] * mat[0] + vec[1] * mat[1] + vec[2] * mat[2] + vec[3] * mat[3],
+    vec[0] * mat[4] + vec[1] * mat[5] + vec[2] * mat[6] + vec[3] * mat[7],
+    vec[0] * mat[8] + vec[1] * mat[9] + vec[2] * mat[10] + vec[3] * mat[11],
+    vec[0] * mat[12] + vec[1] * mat[13] + vec[2] * mat[14] + vec[3] * mat[15],
+  ];
+};
+
 const reflectionTypes = {
   diffuse: 0,
   specular: 1,
@@ -208,7 +220,7 @@ const reflectionTypes = {
 const main = () => {
   const scene = loadScene(cornellScene);
   const shapes: {
-    type: "rectangle";
+    type: "rectangle" | "cube";
     points: [number, number, number][];
     color: [number, number, number];
     emission: [number, number, number];
@@ -248,6 +260,70 @@ const main = () => {
         ],
         reflection: "diffuse",
       });
+    } else if (shape.type === "cube") {
+      const planes = [
+        [
+          [-1, 1, -1, 1],
+          [-1, -1, -1, 1],
+          [1, -1, -1, 1],
+          [1, 1, -1, 1],
+        ],
+        [
+          [-1, 1, 1, 1],
+          [-1, -1, 1, 1],
+          [1, -1, 1, 1],
+          [1, 1, 1, 1],
+        ],
+        [
+          [-1, 1, 1, 1],
+          [-1, 1, -1, 1],
+          [1, 1, -1, 1],
+          [1, 1, 1, 1],
+        ],
+        [
+          [-1, -1, 1, 1],
+          [-1, -1, -1, 1],
+          [1, -1, -1, 1],
+          [1, -1, 1, 1],
+        ],
+        [
+          [1, 1, -1, 1],
+          [1, -1, -1, 1],
+          [1, -1, 1, 1],
+          [1, 1, 1, 1],
+        ],
+        [
+          [-1, 1, -1, 1],
+          [-1, -1, -1, 1],
+          [-1, -1, 1, 1],
+          [-1, 1, 1, 1],
+        ],
+      ] as [number, number, number, number][][];
+      planes.forEach((plane) => {
+        const p1 = applyMat4(shape.matrix, plane[0]);
+        const p2 = applyMat4(shape.matrix, plane[1]);
+        const p3 = applyMat4(shape.matrix, plane[2]);
+        const p4 = applyMat4(shape.matrix, plane[3]);
+
+        shapes.push({
+          type: "rectangle",
+          points: [
+            [p1[0], p1[1], p1[2]],
+            [p2[0], p2[1], p2[2]],
+            [p3[0], p3[1], p3[2]],
+            [p4[0], p4[1], p4[2]],
+          ],
+          color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+          emission: [
+            shape.emitter?.radiance[0] ?? 0.0,
+            shape.emitter?.radiance[1] ?? 0.0,
+            shape.emitter?.radiance[2] ?? 0.0,
+          ],
+          reflection: "diffuse",
+        });
+      });
+    } else {
+      console.warn(`Unknown shape type: ${shape.type} (${shape})`);
     }
   });
 
@@ -692,7 +768,6 @@ const main = () => {
       .flat()
   );
   console.log(shapes);
-  console.log(rectangles);
 
   gl.uniformBlockBinding(
     program,
