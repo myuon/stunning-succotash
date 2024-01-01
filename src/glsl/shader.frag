@@ -125,7 +125,7 @@ Rectangle Rectangle_new(vec3[4] points, vec3 emission, vec3 color, uint reflecti
 HitRecord Rectangle_intersect(Rectangle self, Ray ray) {
     for (int i = 0; i < self.mesh.length(); i++) {
         HitRecord hit = Triangle_intersect(self.mesh[i], ray);
-        if (hit.hit && dot(hit.normal, ray.direction) > 0.0) {
+        if (hit.hit) {
             return hit;
         }
     }
@@ -139,6 +139,13 @@ uniform int n_spheres;
 
 layout(std140) uniform Spheres {
     Sphere spheres[MAX_N_SPHERES];
+};
+
+const int MAX_N_RECTANGLES = 100;
+uniform int n_rectangles;
+
+layout(std140) uniform Rectangles {
+    Rectangle rectangles[MAX_N_RECTANGLES];
 };
 
 const uint TSphere = 0u;
@@ -189,6 +196,22 @@ HitInScene intersect(Ray ray){
             continue;
         }
     }
+    for(int i = 0; i < n_rectangles; i++){
+        Rectangle obj = rectangles[i];
+        HitRecord r = Rectangle_intersect(obj, ray);
+
+        if (r.hit) {
+            float t = length(r.point - ray.origin);
+            if (t < dist) {
+                dist = t;
+                hit.index = i;
+                hit.type = TRectangle;
+                hit.r = r;
+
+                continue;
+            }
+        }
+    }
 
     return hit;
 }
@@ -206,7 +229,11 @@ vec3 raytrace(Ray ray) {
 
         // for debugging:
         // if (hit.index != -1) {
-        //     return spheres[hit.index].color;
+        //     if (hit.type == TSphere) {
+        //         return spheres[hit.index].color;
+        //     } else if (hit.type == TRectangle) {
+        //         return rectangles[hit.index].color;
+        //     }
         // }
 
         vec3 orienting_normal = dot(hit.r.normal, ray.direction) < 0.0 ? hit.r.normal : -hit.r.normal;
@@ -221,7 +248,11 @@ vec3 raytrace(Ray ray) {
         //     // return spheres[hit.index].emission;
         // }
 
-        color += spheres[hit.index].emission * weight;
+        if (hit.type == TSphere) {
+            color += spheres[hit.index].emission * weight;
+        } else if (hit.type == TRectangle) {
+            color += rectangles[hit.index].emission * weight;
+        }
 
         float russian_roulette_threshold = 0.5;
         if (count < 5) {
@@ -239,7 +270,11 @@ vec3 raytrace(Ray ray) {
 
         ray.direction = randOnHemisphere(orienting_normal, seed);
         ray.origin = hit.r.point + ray.direction * kEPS;
-        weight *= spheres[hit.index].color * 1.0 / russian_roulette_threshold;
+        if (hit.type == TSphere) {
+            weight *= spheres[hit.index].color * 1.0 / russian_roulette_threshold;
+        } else if (hit.type == TRectangle) {
+            weight *= rectangles[hit.index].color * 1.0 / russian_roulette_threshold;
+        }
         count++;
     }
 }

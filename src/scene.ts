@@ -79,3 +79,11 @@ export const loadScene = (xml: string) => {
 
   return scene;
 };
+
+export const transformIntoCamera = (matrix: number[]) => {
+  return {
+    position: [matrix[3], matrix[7], matrix[11]],
+    direction: [matrix[2], matrix[6], matrix[10]] as [number, number, number],
+    up: [matrix[1], matrix[5], matrix[9]],
+  };
+};

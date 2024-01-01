@@ -5,7 +5,7 @@ import rendererFragSource from "./glsl/renderer.frag?raw";
 import GUI from "lil-gui";
 import Stats from "stats.js";
 import cornellScene from "./scenes/cornell.xml?raw";
-import { loadScene } from "./scene";
+import { loadScene, transformIntoCamera } from "./scene";
 
 const compileShader = (
   gl: WebGL2RenderingContext,
@@ -189,6 +189,16 @@ const diagnoseGlError = (gl: WebGL2RenderingContext) => {
   }
 };
 
+const subtractVec3 = (
+  a: [number, number, number],
+  b: [number, number, number]
+): [number, number, number] => {
+  const [ax, ay, az] = a;
+  const [bx, by, bz] = b;
+
+  return [ax - bx, ay - by, az - bz];
+};
+
 const reflectionTypes = {
   diffuse: 0,
   specular: 1,
@@ -197,11 +207,17 @@ const reflectionTypes = {
 
 const main = () => {
   const scene = loadScene(cornellScene);
-  const meshes = [];
+  const shapes: {
+    type: "rectangle";
+    points: [number, number, number][];
+    color: [number, number, number];
+    emission: [number, number, number];
+    reflection: "diffuse" | "specular" | "refractive";
+  }[] = [];
   scene.shapes.forEach((shape) => {
     if (shape.type === "rectangle") {
-      meshes.push({
-        type: "Mesh",
+      shapes.push({
+        type: "rectangle",
         points: [
           [
             -shape.matrix[0] - shape.matrix[1] + shape.matrix[3],
@@ -234,7 +250,6 @@ const main = () => {
       });
     }
   });
-  console.log(meshes);
 
   const output = document.getElementById("output")! as HTMLDivElement;
   const canvas = document.getElementById("glcanvas")! as HTMLCanvasElement;
@@ -246,12 +261,19 @@ const main = () => {
 
   console.log(gl.getExtension("EXT_color_buffer_float")!);
 
+  // const camera = {
+  //   position: [50.0, 52.0, 220.0] as [number, number, number],
+  //   direction: [0.0, -0.04, -1.0] as [number, number, number],
+  //   up: [0.0, 1.0, 0.0] as [number, number, number],
+  //   screen_dist: 80.0,
+  // };
   const camera = {
-    position: [50.0, 52.0, 220.0] as [number, number, number],
-    direction: [0.0, -0.04, -1.0] as [number, number, number],
-    up: [0.0, 1.0, 0.0] as [number, number, number],
-    screen_dist: 80.0,
+    ...transformIntoCamera(
+      "-1 0 0 0 0 1 0 1 0 0 -1 6.8 0 0 0 1".split(" ").map(parseFloat)
+    ),
+    screen_dist: 15 / Math.tan((19.5 * 2 * Math.PI) / 360 / 2),
   };
+  console.log(camera);
 
   const program = createProgramFromSource(
     gl,
@@ -272,6 +294,7 @@ const main = () => {
     screen_dist: gl.getUniformLocation(program, "screen_dist"),
     spp: gl.getUniformLocation(program, "spp"),
     n_spheres: gl.getUniformLocation(program, "n_spheres"),
+    n_rectangles: gl.getUniformLocation(program, "n_rectangles"),
   };
 
   const shaderVao = createVao(
@@ -590,23 +613,121 @@ const main = () => {
       .flat()
   );
 
+  const MAX_N_RECTANGLES = 100;
+  const rectangles: {
+    type: "rectangle";
+    mesh: {
+      vertex: [number, number, number];
+      edge1: [number, number, number];
+      edge2: [number, number, number];
+    }[];
+    emission: [number, number, number];
+    color: [number, number, number];
+    reflection: "diffuse" | "specular" | "refractive";
+  }[] = [];
+  shapes.forEach((shape) => {
+    if (shape.type === "rectangle") {
+      rectangles.push({
+        type: "rectangle",
+        mesh: [
+          {
+            vertex: shape.points[0],
+            edge1: subtractVec3(shape.points[1], shape.points[0]),
+            edge2: subtractVec3(shape.points[2], shape.points[0]),
+          },
+          {
+            vertex: shape.points[0],
+            edge1: subtractVec3(shape.points[2], shape.points[0]),
+            edge2: subtractVec3(shape.points[3], shape.points[0]),
+          },
+        ],
+        emission: shape.emission,
+        color: shape.color,
+        reflection: shape.reflection,
+      });
+    }
+  });
+  const rectanglesData = new Float32Array(
+    Array.from({
+      length: MAX_N_RECTANGLES,
+    })
+      .map((_, i) => {
+        const rectangle = rectangles[i] ?? {
+          mesh: [
+            {
+              vertex: [0.0, 0.0, 0.0],
+              edge1: [0.0, 0.0, 0.0],
+              edge2: [0.0, 0.0, 0.0],
+            },
+            {
+              vertex: [0.0, 0.0, 0.0],
+              edge1: [0.0, 0.0, 0.0],
+              edge2: [0.0, 0.0, 0.0],
+            },
+          ],
+          emission: [0.0, 0.0, 0.0],
+          color: [0.0, 0.0, 0.0],
+          reflection: "diffuse",
+        };
+
+        return [
+          ...rectangle.mesh[0].vertex,
+          0.0, // padding
+          ...rectangle.mesh[0].edge1,
+          0.0, // padding
+          ...rectangle.mesh[0].edge2,
+          0.0, // padding
+          ...rectangle.mesh[1].vertex,
+          0.0, // padding
+          ...rectangle.mesh[1].edge1,
+          0.0, // padding
+          ...rectangle.mesh[1].edge2,
+          0.0, // padding
+          ...rectangle.emission,
+          0.0, // padding
+          ...rectangle.color,
+          reflectionTypes[rectangle.reflection],
+        ];
+      })
+      .flat()
+  );
+  console.log(shapes);
+  console.log(rectangles);
+
   gl.uniformBlockBinding(
     program,
     gl.getUniformBlockIndex(program, "Spheres"),
     0
   );
+  gl.uniformBlockBinding(
+    program,
+    gl.getUniformBlockIndex(program, "Rectangles"),
+    1
+  );
 
-  const ubo = gl.createBuffer();
-  if (!ubo) {
+  const sphereUbo = gl.createBuffer();
+  if (!sphereUbo) {
     console.error("Failed to create buffer");
     return;
   }
 
-  gl.bindBuffer(gl.UNIFORM_BUFFER, ubo);
+  gl.bindBuffer(gl.UNIFORM_BUFFER, sphereUbo);
   gl.bufferData(gl.UNIFORM_BUFFER, sceneData, gl.DYNAMIC_DRAW);
   gl.bindBuffer(gl.UNIFORM_BUFFER, null);
 
-  gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, ubo);
+  gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, sphereUbo);
+
+  const rectangleUbo = gl.createBuffer();
+  if (!rectangleUbo) {
+    console.error("Failed to create buffer");
+    return;
+  }
+
+  gl.bindBuffer(gl.UNIFORM_BUFFER, rectangleUbo);
+  gl.bufferData(gl.UNIFORM_BUFFER, rectanglesData, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+
+  gl.bindBufferBase(gl.UNIFORM_BUFFER, 1, rectangleUbo);
 
   const loop = () => {
     stats.begin();
@@ -627,7 +748,8 @@ const main = () => {
       gl.uniform3fv(programLocations.camera_up, camera.up);
       gl.uniform1f(programLocations.screen_dist, camera.screen_dist);
       gl.uniform1i(programLocations.spp, value.spp);
-      gl.uniform1i(programLocations.n_spheres, 10);
+      gl.uniform1i(programLocations.n_spheres, 0);
+      gl.uniform1i(programLocations.n_rectangles, rectangles.length);
 
       gl.bindVertexArray(shaderVao);
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
