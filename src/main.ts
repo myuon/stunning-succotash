@@ -190,16 +190,6 @@ const diagnoseGlError = (gl: WebGL2RenderingContext) => {
   }
 };
 
-const subtractVec3 = (
-  a: [number, number, number],
-  b: [number, number, number]
-): [number, number, number] => {
-  const [ax, ay, az] = a;
-  const [bx, by, bz] = b;
-
-  return [ax - bx, ay - by, az - bz];
-};
-
 const reflectionTypes = {
   diffuse: 0,
   specular: 1,
