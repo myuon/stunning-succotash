@@ -6,6 +6,7 @@ import GUI from "lil-gui";
 import Stats from "stats.js";
 import cornellScene from "./scenes/cornell.xml?raw";
 import { loadScene, transformIntoCamera } from "./scene";
+import { mat4, vec4 } from "gl-matrix";
 
 const compileShader = (
   gl: WebGL2RenderingContext,
@@ -199,18 +200,6 @@ const subtractVec3 = (
   return [ax - bx, ay - by, az - bz];
 };
 
-const applyMat4 = (
-  mat: number[],
-  vec: [number, number, number, number]
-): [number, number, number, number] => {
-  return [
-    vec[0] * mat[0] + vec[1] * mat[1] + vec[2] * mat[2] + vec[3] * mat[3],
-    vec[0] * mat[4] + vec[1] * mat[5] + vec[2] * mat[6] + vec[3] * mat[7],
-    vec[0] * mat[8] + vec[1] * mat[9] + vec[2] * mat[10] + vec[3] * mat[11],
-    vec[0] * mat[12] + vec[1] * mat[13] + vec[2] * mat[14] + vec[3] * mat[15],
-  ];
-};
-
 const reflectionTypes = {
   diffuse: 0,
   specular: 1,
@@ -300,10 +289,52 @@ const main = () => {
         ],
       ] as [number, number, number, number][][];
       planes.forEach((plane) => {
-        const p1 = applyMat4(shape.matrix, plane[0]);
-        const p2 = applyMat4(shape.matrix, plane[1]);
-        const p3 = applyMat4(shape.matrix, plane[2]);
-        const p4 = applyMat4(shape.matrix, plane[3]);
+        const mat = mat4.fromValues(
+          shape.matrix[0],
+          shape.matrix[4],
+          shape.matrix[8],
+          shape.matrix[12],
+          shape.matrix[1],
+          shape.matrix[5],
+          shape.matrix[9],
+          shape.matrix[13],
+          shape.matrix[2],
+          shape.matrix[6],
+          shape.matrix[10],
+          shape.matrix[14],
+          shape.matrix[3],
+          shape.matrix[7],
+          shape.matrix[11],
+          shape.matrix[15]
+        );
+
+        const p1 = vec4.create();
+        vec4.transformMat4(
+          p1,
+          vec4.fromValues(plane[0][0], plane[0][1], plane[0][2], plane[0][3]),
+          mat
+        );
+
+        const p2 = vec4.create();
+        vec4.transformMat4(
+          p2,
+          vec4.fromValues(plane[1][0], plane[1][1], plane[1][2], plane[1][3]),
+          mat
+        );
+
+        const p3 = vec4.create();
+        vec4.transformMat4(
+          p3,
+          vec4.fromValues(plane[2][0], plane[2][1], plane[2][2], plane[2][3]),
+          mat
+        );
+
+        const p4 = vec4.create();
+        vec4.transformMat4(
+          p4,
+          vec4.fromValues(plane[3][0], plane[3][1], plane[3][2], plane[3][3]),
+          mat
+        );
 
         shapes.push({
           type: "rectangle",
