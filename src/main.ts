@@ -6,7 +6,7 @@ import GUI from "lil-gui";
 import Stats from "stats.js";
 import cornellScene from "./scenes/cornell.xml?raw";
 import { loadScene, transformIntoCamera } from "./scene";
-import { mat4, vec4 } from "gl-matrix";
+import { mat4, vec3, vec4 } from "gl-matrix";
 
 const compileShader = (
   gl: WebGL2RenderingContext,
@@ -210,7 +210,7 @@ const main = () => {
   const scene = loadScene(cornellScene);
   const shapes: {
     type: "rectangle" | "cube";
-    points: [number, number, number][];
+    points: vec3[];
     color: [number, number, number];
     emission: [number, number, number];
     reflection: "diffuse" | "specular" | "refractive";
@@ -733,18 +733,48 @@ const main = () => {
   }[] = [];
   shapes.forEach((shape) => {
     if (shape.type === "rectangle") {
+      const p0 = vec3.fromValues(
+        shape.points[0][0],
+        shape.points[0][1],
+        shape.points[0][2]
+      );
+      const p1 = vec3.fromValues(
+        shape.points[1][0],
+        shape.points[1][1],
+        shape.points[1][2]
+      );
+      const p2 = vec3.fromValues(
+        shape.points[2][0],
+        shape.points[2][1],
+        shape.points[2][2]
+      );
+      const p3 = vec3.fromValues(
+        shape.points[3][0],
+        shape.points[3][1],
+        shape.points[3][2]
+      );
+
+      let e10 = vec3.create();
+      vec3.subtract(e10, p1, p0);
+
+      let e20 = vec3.create();
+      vec3.subtract(e20, p2, p0);
+
+      let e30 = vec3.create();
+      vec3.subtract(e30, p3, p0);
+
       rectangles.push({
         type: "rectangle",
         mesh: [
           {
-            vertex: shape.points[0],
-            edge1: subtractVec3(shape.points[1], shape.points[0]),
-            edge2: subtractVec3(shape.points[2], shape.points[0]),
+            vertex: [p0[0], p0[1], p0[2]],
+            edge1: [e10[0], e10[1], e10[2]],
+            edge2: [e20[0], e20[1], e20[2]],
           },
           {
-            vertex: shape.points[0],
-            edge1: subtractVec3(shape.points[2], shape.points[0]),
-            edge2: subtractVec3(shape.points[3], shape.points[0]),
+            vertex: [p0[0], p0[1], p0[2]],
+            edge1: [e30[0], e30[1], e30[2]],
+            edge2: [e20[0], e20[1], e20[2]],
           },
         ],
         emission: shape.emission,
