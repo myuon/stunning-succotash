@@ -286,8 +286,8 @@ struct Camera {
 
 void main(void){
     Camera camera = Camera(camera_position, normalize(camera_up), normalize(camera_direction), screen_dist);
-    float screen_width = 30.0;
-    float screen_height = 30.0;
+    float screen_width = 3.0;
+    float screen_height = 3.0;
 
     vec3 screen_x = normalize(cross(camera.direction, camera.up)) * screen_width;
     vec3 screen_y = normalize(cross(screen_x, camera.direction)) * screen_height;

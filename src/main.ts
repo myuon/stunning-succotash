@@ -360,18 +360,13 @@ const main = () => {
 
   console.log(gl.getExtension("EXT_color_buffer_float")!);
 
-  // const camera = {
-  //   position: [50.0, 52.0, 220.0] as [number, number, number],
-  //   direction: [0.0, -0.04, -1.0] as [number, number, number],
-  //   up: [0.0, 1.0, 0.0] as [number, number, number],
-  //   screen_dist: 80.0,
-  // };
   const camera = {
     ...transformIntoCamera(
       "-1 0 0 0 0 1 0 1 0 0 -1 6.8 0 0 0 1".split(" ").map(parseFloat)
     ),
-    screen_dist: 15 / Math.tan((19.5 * 2 * Math.PI) / 360 / 2),
+    screen_dist: 8,
   };
+  console.log(camera);
 
   const program = createProgramFromSource(
     gl,
@@ -539,11 +534,43 @@ const main = () => {
       angleX = Math.max(Math.min(angleX, Math.PI / 2), -Math.PI / 2);
       angleY = angleY % (Math.PI * 2);
 
-      camera.direction = [
-        Math.cos(angleX) * Math.sin(angleY),
-        Math.sin(angleX),
-        -Math.cos(angleX) * Math.cos(angleY),
+      const lookAt = vec3.create();
+      vec3.scaleAndAdd(
+        lookAt,
+        camera.position,
+        camera.direction,
+        camera.screen_dist
+      );
+
+      let cam = vec3.create();
+      vec3.subtract(cam, camera.position, lookAt);
+      vec3.normalize(cam, cam);
+
+      let phi = Math.atan2(cam[2], cam[0]);
+      if (phi < 0) {
+        phi += Math.PI * 2;
+      } else if (phi > Math.PI * 2) {
+        phi -= Math.PI * 2;
+      }
+      let theta = Math.acos(cam[1]);
+
+      phi -= 0.01 * dx;
+      theta += 0.01 * dy;
+
+      cam = [
+        Math.sin(theta) * Math.cos(phi),
+        Math.cos(theta),
+        Math.sin(theta) * Math.sin(phi),
       ];
+
+      vec3.scaleAndAdd(camera.position, lookAt, cam, camera.screen_dist);
+
+      camera.direction = [-cam[0], -cam[1], -cam[2]];
+
+      const right = vec3.create();
+      vec3.cross(right, camera.direction, [0, 1, 0]);
+
+      vec3.cross(camera.up, right, camera.direction);
 
       prevMousePosition = [e.clientX, e.clientY];
       reset();
