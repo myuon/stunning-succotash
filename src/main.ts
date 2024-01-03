@@ -196,6 +196,8 @@ const reflectionTypes = {
   refractive: 2,
 };
 
+const renderTypes = ["render", "color", "normal"];
+
 const main = () => {
   const scene = loadScene(cornellScene);
   const shapes: {
@@ -391,6 +393,7 @@ const main = () => {
     spp: gl.getUniformLocation(program, "spp"),
     n_spheres: gl.getUniformLocation(program, "n_spheres"),
     n_rectangles: gl.getUniformLocation(program, "n_rectangles"),
+    render_type: gl.getUniformLocation(program, "render_type"),
   };
 
   const shaderVao = createVao(
@@ -599,6 +602,7 @@ const main = () => {
   const gui = new GUI();
   const value = {
     tick: true,
+    type: "render",
     spp: 1,
   };
   gui.add(value, "tick").onChange((v: boolean) => {
@@ -610,6 +614,10 @@ const main = () => {
       value.spp = v;
       reset();
     });
+  gui.add(value, "type", renderTypes).onChange((v: string) => {
+    value.type = v;
+    reset();
+  });
 
   const MAX_N_SPHERES = 100;
   const spheres = [
@@ -874,6 +882,10 @@ const main = () => {
       gl.uniform1i(programLocations.spp, value.spp);
       gl.uniform1i(programLocations.n_spheres, 0);
       gl.uniform1i(programLocations.n_rectangles, rectangles.length);
+      gl.uniform1i(
+        programLocations.render_type,
+        renderTypes.indexOf(value.type)
+      );
 
       gl.bindVertexArray(shaderVao);
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);

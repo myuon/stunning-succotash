@@ -10,6 +10,11 @@ uniform vec3 camera_direction;
 uniform vec3 camera_up;
 uniform float screen_dist;
 uniform int spp;
+uniform int render_type;
+
+const int RenderTypeRender = 0;
+const int RenderTypeColor = 1;
+const int RenderTypeNormal = 2;
 
 in vec2 v_texcoord;
 out vec4 outColor;
@@ -227,26 +232,19 @@ vec3 raytrace(Ray ray) {
             return color;
         }
 
-        // for debugging:
-        // if (hit.index != -1) {
-        //     if (hit.type == TSphere) {
-        //         return spheres[hit.index].color;
-        //     } else if (hit.type == TRectangle) {
-        //         return rectangles[hit.index].color;
-        //     }
-        // }
+        if (render_type == RenderTypeColor && hit.index != -1) {
+            if (hit.type == TSphere) {
+                return spheres[hit.index].color;
+            } else if (hit.type == TRectangle) {
+                return rectangles[hit.index].color;
+            }
+        }
 
         vec3 orienting_normal = dot(hit.r.normal, ray.direction) < 0.0 ? hit.r.normal : -hit.r.normal;
-        // for debugging normal:
-        // return orienting_normal;
 
-        // for debugging color:
-        // return spheres[hit.index].color + spheres[hit.index].emission;
-
-        // if (count == 1) {
-        //     // return hit.normal;
-        //     // return spheres[hit.index].emission;
-        // }
+        if (render_type == RenderTypeNormal) {
+            return orienting_normal + vec3(0.25);
+        }
 
         if (hit.type == TSphere) {
             color += spheres[hit.index].emission * weight;
