@@ -203,8 +203,8 @@ const main = () => {
   const shapes: {
     type: "rectangle" | "cube";
     points: vec3[];
-    color: [number, number, number];
-    emission: [number, number, number];
+    color: vec3;
+    emission: vec3;
     reflection: "diffuse" | "specular" | "refractive";
   }[] = [];
   scene.shapes.forEach((shape) => {
@@ -721,12 +721,12 @@ const main = () => {
   const rectangles: {
     type: "rectangle";
     mesh: {
-      vertex: [number, number, number];
-      edge1: [number, number, number];
-      edge2: [number, number, number];
+      vertex: vec3;
+      edge1: vec3;
+      edge2: vec3;
     }[];
-    emission: [number, number, number];
-    color: [number, number, number];
+    emission: vec3;
+    color: vec3;
     reflection: "diffuse" | "specular" | "refractive";
   }[] = [];
   shapes.forEach((shape) => {
