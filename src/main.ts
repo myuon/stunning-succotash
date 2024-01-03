@@ -578,14 +578,36 @@ const main = () => {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "w") {
-      camera.position = [
-        camera.position[0] + camera.direction[0],
-        camera.position[1] + camera.direction[1],
-        camera.position[2] + camera.direction[2],
-      ];
+      const up = vec3.fromValues(camera.up[0], camera.up[1], camera.up[2]);
+      vec3.scale(up, up, 0.1);
+
+      vec3.add(camera.position, camera.position, up);
       iterations = 1;
       reset();
     } else if (e.key === "s") {
+      const up = vec3.fromValues(camera.up[0], camera.up[1], camera.up[2]);
+      vec3.scale(up, up, 0.1);
+
+      vec3.subtract(camera.position, camera.position, up);
+      iterations = 1;
+      reset();
+    } else if (e.key === "a") {
+      const right = vec3.create();
+      vec3.cross(right, camera.direction, camera.up);
+      vec3.scale(right, right, 0.1);
+
+      vec3.subtract(camera.position, camera.position, right);
+      iterations = 1;
+      reset();
+    } else if (e.key === "d") {
+      const right = vec3.create();
+      vec3.cross(right, camera.direction, camera.up);
+      vec3.scale(right, right, 0.1);
+
+      vec3.add(camera.position, camera.position, right);
+      iterations = 1;
+      reset();
+    } else if (e.key == "q") {
       camera.position = [
         camera.position[0] - camera.direction[0],
         camera.position[1] - camera.direction[1],
@@ -593,29 +615,11 @@ const main = () => {
       ];
       iterations = 1;
       reset();
-    } else if (e.key === "a") {
-      const right = [
-        camera.direction[1] * camera.up[2] - camera.direction[2] * camera.up[1],
-        camera.direction[2] * camera.up[0] - camera.direction[0] * camera.up[2],
-        camera.direction[0] * camera.up[1] - camera.direction[1] * camera.up[0],
-      ];
+    } else if (e.key == "e") {
       camera.position = [
-        camera.position[0] - right[0],
-        camera.position[1] - right[1],
-        camera.position[2] - right[2],
-      ];
-      iterations = 1;
-      reset();
-    } else if (e.key === "d") {
-      const right = [
-        camera.direction[1] * camera.up[2] - camera.direction[2] * camera.up[1],
-        camera.direction[2] * camera.up[0] - camera.direction[0] * camera.up[2],
-        camera.direction[0] * camera.up[1] - camera.direction[1] * camera.up[0],
-      ];
-      camera.position = [
-        camera.position[0] + right[0],
-        camera.position[1] + right[1],
-        camera.position[2] + right[2],
+        camera.position[0] + camera.direction[0],
+        camera.position[1] + camera.direction[1],
+        camera.position[2] + camera.direction[2],
       ];
       iterations = 1;
       reset();
