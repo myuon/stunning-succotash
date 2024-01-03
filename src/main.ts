@@ -599,24 +599,40 @@ const main = () => {
   stats.showPanel(0);
   document.body.appendChild(stats.dom);
 
-  const gui = new GUI();
-  const value = {
-    tick: true,
-    renderType: "render",
-    spp: 1,
+  const loadSettings = () => {
+    try {
+      const settings = localStorage.getItem("settings");
+
+      return JSON.parse(settings ?? "");
+    } catch (err) {
+      return {
+        tick: true,
+        renderType: "render",
+        spp: 1,
+      };
+    }
   };
+  const saveSettings = (value: any) => {
+    localStorage.setItem("settings", JSON.stringify(value));
+  };
+
+  const gui = new GUI();
+  const value = loadSettings();
   gui.add(value, "tick").onChange((v: boolean) => {
     value.tick = v;
+    saveSettings(value);
   });
   gui
     .add(value, "spp", [1, 2, 4, 8, 16, 32, 64, 128, 256])
     .onChange((v: number) => {
       value.spp = v;
       reset();
+      saveSettings(value);
     });
   gui.add(value, "renderType", renderTypes).onChange((v: string) => {
     value.renderType = v;
     reset();
+    saveSettings(value);
   });
 
   const MAX_N_SPHERES = 100;
