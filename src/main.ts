@@ -4,7 +4,7 @@ import rendererVertSource from "./glsl/renderer.vert?raw";
 import rendererFragSource from "./glsl/renderer.frag?raw";
 import GUI from "lil-gui";
 import Stats from "stats.js";
-import cornellScene from "./scenes/cornell.xml?raw";
+import cornellScene from "./scenes/cornell-box/scene.xml?raw";
 import { loadScene, transformIntoCamera } from "./scene";
 import { mat4, vec3, vec4 } from "gl-matrix";
 import { createProgramFromSource, createVao, diagnoseGlError } from "./webgl";
