@@ -602,7 +602,7 @@ const main = () => {
   const gui = new GUI();
   const value = {
     tick: true,
-    type: "render",
+    renderType: "render",
     spp: 1,
   };
   gui.add(value, "tick").onChange((v: boolean) => {
@@ -614,8 +614,8 @@ const main = () => {
       value.spp = v;
       reset();
     });
-  gui.add(value, "type", renderTypes).onChange((v: string) => {
-    value.type = v;
+  gui.add(value, "renderType", renderTypes).onChange((v: string) => {
+    value.renderType = v;
     reset();
   });
 
@@ -884,7 +884,7 @@ const main = () => {
       gl.uniform1i(programLocations.n_rectangles, rectangles.length);
       gl.uniform1i(
         programLocations.render_type,
-        renderTypes.indexOf(value.type)
+        renderTypes.indexOf(value.renderType)
       );
 
       gl.bindVertexArray(shaderVao);
