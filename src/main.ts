@@ -301,32 +301,16 @@ const main = () => {
         );
 
         const p1 = vec4.create();
-        vec4.transformMat4(
-          p1,
-          vec4.fromValues(plane[0][0], plane[0][1], plane[0][2], plane[0][3]),
-          mat
-        );
+        vec4.transformMat4(p1, plane[0], mat);
 
         const p2 = vec4.create();
-        vec4.transformMat4(
-          p2,
-          vec4.fromValues(plane[1][0], plane[1][1], plane[1][2], plane[1][3]),
-          mat
-        );
+        vec4.transformMat4(p2, plane[1], mat);
 
         const p3 = vec4.create();
-        vec4.transformMat4(
-          p3,
-          vec4.fromValues(plane[2][0], plane[2][1], plane[2][2], plane[2][3]),
-          mat
-        );
+        vec4.transformMat4(p3, plane[2], mat);
 
         const p4 = vec4.create();
-        vec4.transformMat4(
-          p4,
-          vec4.fromValues(plane[3][0], plane[3][1], plane[3][2], plane[3][3]),
-          mat
-        );
+        vec4.transformMat4(p4, plane[3], mat);
 
         shapes.push({
           type: "rectangle",
