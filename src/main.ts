@@ -181,6 +181,7 @@ const main = async () => {
 
   console.log(gl.getExtension("EXT_color_buffer_float")!);
   console.log(gl.getParameter(gl.MAX_COMBINED_UNIFORM_BLOCKS));
+  console.log(gl.getParameter(gl.MAX_TEXTURE_SIZE));
 
   const camera = {
     ...transformIntoCamera(
@@ -203,6 +204,7 @@ const main = async () => {
     position: gl.getAttribLocation(program, "position"),
     texcoord: gl.getAttribLocation(program, "a_texcoord"),
     texture: gl.getUniformLocation(program, "u_texture"),
+    trianglesTexture: gl.getUniformLocation(program, "triangles_texture"),
     iterations: gl.getUniformLocation(program, "iterations"),
     resolution: gl.getUniformLocation(program, "resolution"),
     camera_position: gl.getUniformLocation(program, "camera_position"),
@@ -705,7 +707,7 @@ const main = async () => {
       .flat()
   );
 
-  const MAX_N_TRIANGLES = 1000;
+  const MAX_N_TRIANGLES = 1;
   const triangles: {
     type: "triangle";
     triangle: {
@@ -825,6 +827,45 @@ const main = async () => {
 
   gl.bindBufferBase(gl.UNIFORM_BUFFER, 2, triangleUbo);
 
+  const textureSize = 4096;
+  const triangleTextureData = new Float32Array(textureSize * textureSize * 4);
+  triangles.forEach((triangle, i) => {
+    const size = 24;
+
+    triangleTextureData[i * size + 0] = triangle.triangle.vertex[0];
+    triangleTextureData[i * size + 1] = triangle.triangle.vertex[1];
+    triangleTextureData[i * size + 2] = triangle.triangle.vertex[2];
+    triangleTextureData[i * size + 3] = 0;
+
+    triangleTextureData[i * size + 4] = triangle.triangle.edge1[0];
+    triangleTextureData[i * size + 5] = triangle.triangle.edge1[1];
+    triangleTextureData[i * size + 6] = triangle.triangle.edge1[2];
+    triangleTextureData[i * size + 7] = 0;
+
+    triangleTextureData[i * size + 8] = triangle.triangle.edge2[0];
+    triangleTextureData[i * size + 9] = triangle.triangle.edge2[1];
+    triangleTextureData[i * size + 10] = triangle.triangle.edge2[2];
+    triangleTextureData[i * size + 11] = 0;
+  });
+
+  gl.activeTexture(gl.TEXTURE1);
+  const triangleTexture = gl.createTexture()!;
+  gl.bindTexture(gl.TEXTURE_2D, triangleTexture);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA32F,
+    textureSize,
+    textureSize,
+    0,
+    gl.RGBA,
+    gl.FLOAT,
+    triangleTextureData
+  );
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+
   const loop = () => {
     stats.begin();
 
@@ -837,6 +878,11 @@ const main = async () => {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, textures[0]);
       gl.uniform1i(programLocations.texture, 0);
+
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, triangleTexture);
+      gl.uniform1i(programLocations.trianglesTexture, 1);
+
       gl.uniform1i(programLocations.iterations, iterations);
       gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
       gl.uniform3fv(programLocations.camera_position, camera.position);

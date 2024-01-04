@@ -11,6 +11,7 @@ uniform vec3 camera_up;
 uniform float screen_dist;
 uniform int spp;
 uniform int render_type;
+uniform sampler2D triangles_texture;
 
 const int RenderTypeRender = 0;
 const int RenderTypeColor = 1;
@@ -144,12 +145,28 @@ layout(std140) uniform Rectangles {
     Rectangle rectangles[MAX_N_RECTANGLES];
 };
 
-const int MAX_N_TRIANGLES = 1000;
+const int MAX_N_TRIANGLES = 1;
 uniform int n_triangles;
 
 layout(std140) uniform Triangles {
     Triangle triangles[MAX_N_TRIANGLES];
 };
+
+vec4 getValueFromTexture(sampler2D tex, int index, int size) {
+    int x = index % size;
+    int y = index / size;
+    return texture(tex, vec2(x, y));
+}
+
+const int textureSize = 4096;
+Triangle fetchTriangle(int index) {
+    int size = 24 / 4;
+    vec3 vertex = getValueFromTexture(triangles_texture, index * size, textureSize).xyz;
+    vec3 edge1 = getValueFromTexture(triangles_texture, index * size + 1, textureSize).xyz;
+    vec3 edge2 = getValueFromTexture(triangles_texture, index * size + 2, textureSize).xyz;
+
+    return Triangle(vertex, edge1, edge2);
+}
 
 const uint TSphere = 0u;
 const uint TRectangle = 1u;
@@ -217,7 +234,7 @@ HitInScene intersect(Ray ray){
         }
     }
     for(int i = 0; i < n_triangles; i++){
-        Triangle obj = triangles[i];
+        Triangle obj = fetchTriangle(i);
         HitRecord r = Triangle_intersect(obj, ray);
 
         if (r.hit) {
