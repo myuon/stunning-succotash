@@ -7,7 +7,9 @@ import Stats from "stats.js";
 import cornellScene from "./scenes/cornell-box/scene.xml?raw";
 import veachBidirScene from "./scenes/veach-bidir/scene.xml?raw";
 import cornellboxOriginalScene from "./scenes/cornell-box-mtl/CornellBox-Original.obj?raw";
+import cornellboxOriginalSceneMtl from "./scenes/cornell-box-mtl/CornellBox-Original.mtl?raw";
 import {
+  Scene,
   Triangle,
   loadMitsubaScene,
   loadMtlScene,
@@ -27,8 +29,11 @@ const renderTypes = ["render", "color", "normal"];
 const scenes = ["cornell-box", "veach-bidir"];
 
 const main = async () => {
-  console.log(loadObjScene(cornellboxOriginalScene));
-  const scene = await loadMitsubaScene(veachBidirScene);
+  const boxObj = loadObjScene(cornellboxOriginalScene);
+  const boxMtl = loadMtlScene(cornellboxOriginalSceneMtl);
+
+  // const scene = await loadMitsubaScene(veachBidirScene);
+  const scene: Scene = { shapes: [] };
   const shapes: {
     type: "rectangle" | "cube" | "mesh";
     points: vec3[];
@@ -749,6 +754,48 @@ const main = async () => {
       });
     }
   });
+  boxObj.objects.forEach((object) => {
+    const fs = object.faces;
+
+    fs.forEach((f) => {
+      if (f.length === 4) {
+        let e10 = vec3.create();
+        vec3.subtract(e10, f[1], f[0]);
+
+        let e20 = vec3.create();
+        vec3.subtract(e20, f[2], f[0]);
+
+        let e30 = vec3.create();
+        vec3.subtract(e30, f[3], f[0]);
+
+        triangles.push({
+          type: "triangle",
+          triangle: {
+            vertex: f[0],
+            edge1: e10,
+            edge2: e20,
+          },
+          emission: [0.0, 0.0, 0.0],
+          color: [0.75, 0.75, 0.75],
+          reflection: "diffuse",
+        });
+        triangles.push({
+          type: "triangle",
+          triangle: {
+            vertex: f[0],
+            edge1: e30,
+            edge2: e20,
+          },
+          emission: [0.0, 0.0, 0.0],
+          color: [0.75, 0.75, 0.75],
+          reflection: "diffuse",
+        });
+      } else {
+        console.error("not implemented");
+        throw new Error("not implemented");
+      }
+    });
+  });
 
   gl.uniformBlockBinding(
     program,
@@ -850,7 +897,7 @@ const main = async () => {
       gl.uniform1i(programLocations.spp, value.spp);
       gl.uniform1i(programLocations.n_spheres, 0);
       gl.uniform1i(programLocations.n_rectangles, rectangles.length);
-      gl.uniform1i(programLocations.n_triangles, 500);
+      gl.uniform1i(programLocations.n_triangles, triangles.length);
       gl.uniform1i(
         programLocations.render_type,
         renderTypes.indexOf(value.renderType)

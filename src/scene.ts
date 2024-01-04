@@ -470,8 +470,7 @@ export interface SceneObj {
   mtllib?: string;
   objects: {
     name: string;
-    vertices: vec3[];
-    faces: number[][];
+    faces: vec3[][];
     usemtl: string;
   }[];
 }
@@ -517,22 +516,37 @@ export const loadObjScene = (raw: string) => {
         throw new Error(`Unexpected token [g]: ${JSON.stringify(nextToken)}`);
       }
       const name = nextToken.value;
-      const object = {
-        name,
-        vertices,
-        faces: [],
-        usemtl: "",
-      };
-      scene.objects.push(object);
-      position += 2;
-      vertices = [];
-      continue;
+
+      if (scene.objects[scene.objects!.length - 1]?.name === name) {
+        position += 2;
+        continue;
+      } else {
+        const object = {
+          name,
+          faces: [],
+          usemtl: "",
+        };
+        scene.objects.push(object);
+        position += 2;
+        continue;
+      }
     } else if (token.type === "keyword" && token.value === "usemtl") {
       const nextToken = tokens[position + 1];
       if (nextToken.type !== "identifier") {
         throw new Error(`Unexpected token: ${nextToken}`);
       }
-      scene.objects[scene.objects!.length - 1].usemtl = nextToken.value;
+
+      if (scene.objects[scene.objects!.length - 1].usemtl === "") {
+        scene.objects[scene.objects!.length - 1].usemtl = nextToken.value;
+      } else {
+        const name = nextToken.value;
+        const object = {
+          name,
+          faces: [],
+          usemtl: "",
+        };
+        scene.objects.push(object);
+      }
       position += 2;
       continue;
     } else if (token.type === "keyword" && token.value === "f") {
@@ -551,10 +565,10 @@ export const loadObjScene = (raw: string) => {
       }
 
       scene.objects[scene.objects!.length - 1].faces.push([
-        t1.value,
-        t2.value,
-        t3.value,
-        t4.value,
+        vertices[t1.value < 0 ? vertices.length + t1.value : t1.value],
+        vertices[t2.value < 0 ? vertices.length + t2.value : t2.value],
+        vertices[t3.value < 0 ? vertices.length + t3.value : t3.value],
+        vertices[t4.value < 0 ? vertices.length + t4.value : t4.value],
       ]);
       position += 5;
       continue;
