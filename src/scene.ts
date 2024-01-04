@@ -19,7 +19,7 @@ export interface Scene {
 
 type DeepPartial<T> = { [P in keyof T]?: DeepPartial<T[P]> } | undefined;
 
-export const loadScene = async (xml: string) => {
+export const loadMitsubaScene = async (xml: string) => {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xml, "text/xml");
 
@@ -134,4 +134,434 @@ export const loadObjFile = async (objFile: string) => {
   });
 
   return faces;
+};
+
+const tokenizeMtl = (
+  raw: string
+): (
+  | {
+      type: "identifier";
+      value: string;
+    }
+  | {
+      type: "number";
+      value: number;
+    }
+  | {
+      type: "keyword";
+      value: string;
+    }
+)[] => {
+  let position = 0;
+  const tokens: (
+    | {
+        type: "identifier";
+        value: string;
+      }
+    | {
+        type: "number";
+        value: number;
+      }
+    | {
+        type: "keyword";
+        value: string;
+      }
+  )[] = [];
+
+  while (position < raw.length) {
+    if (raw[position] === "#") {
+      while (raw[position] !== "\n") {
+        position++;
+      }
+
+      continue;
+    }
+
+    if (
+      raw[position] === " " ||
+      raw[position] === "\n" ||
+      raw[position] === "\r"
+    ) {
+      position++;
+      continue;
+    }
+
+    const keywords = [
+      "newmtl",
+      "Ns",
+      "Ni",
+      "illum",
+      "Ka",
+      "Kd",
+      "Ks",
+      "Ke",
+      "d",
+      "Tr",
+      "Tf",
+    ];
+    let should_continue = false;
+    for (const keyword of keywords) {
+      if (raw.slice(position).startsWith(keyword)) {
+        tokens.push({
+          type: "keyword",
+          value: keyword,
+        });
+        position += keyword.length;
+        should_continue = true;
+        break;
+      }
+    }
+    if (should_continue) continue;
+
+    if (raw[position].match(/[a-zA-Z]/)) {
+      const start = position;
+      while (raw[position].match(/[a-zA-Z]/)) {
+        position++;
+      }
+      tokens.push({
+        type: "identifier",
+        value: raw.slice(start, position),
+      });
+      continue;
+    }
+    if (raw[position].match(/[0-9\.]/)) {
+      const start = position;
+      while (raw[position].match(/[0-9\.]/)) {
+        position++;
+      }
+      tokens.push({
+        type: "number",
+        value: parseFloat(raw.slice(start, position)),
+      });
+      continue;
+    }
+
+    throw new Error(`Unexpected token: ${raw.slice(position, position + 20)}`);
+  }
+
+  return tokens;
+};
+
+export interface Material {
+  name: string;
+  Ns?: number;
+  Ni?: number;
+  illum?: number;
+  Ka?: vec3;
+  Kd?: vec3;
+  Ks?: vec3;
+  Ke?: vec3;
+  d?: number;
+  Tr?: number;
+  Tf?: vec3;
+}
+
+export const loadMtlScene = (raw: string) => {
+  const tokens = tokenizeMtl(raw);
+  let position = 0;
+
+  const materials: Material[] = [];
+
+  while (position < tokens.length) {
+    const token = tokens[position];
+
+    if (token.type === "keyword" && token.value === "newmtl") {
+      const nextToken = tokens[position + 1];
+      if (nextToken.type !== "identifier") {
+        throw new Error(`Unexpected token: ${nextToken}`);
+      }
+
+      const name = nextToken.value;
+      const material = {
+        name,
+      };
+      materials.push(material);
+      position += 2;
+      continue;
+    } else if (token.type === "keyword" && token.value === "Ns") {
+      const nextToken = tokens[position + 1];
+      if (nextToken.type !== "number") {
+        throw new Error(`Unexpected token: ${nextToken}`);
+      }
+      materials[materials.length - 1].Ns = nextToken.value;
+      position += 2;
+      continue;
+    } else if (token.type === "keyword" && token.value === "Ni") {
+      const nextToken = tokens[position + 1];
+      if (nextToken.type !== "number") {
+        throw new Error(`Unexpected token: ${nextToken}`);
+      }
+      materials[materials.length - 1].Ni = nextToken.value;
+      position += 2;
+      continue;
+    } else if (token.type === "keyword" && token.value === "illum") {
+      const nextToken = tokens[position + 1];
+      if (nextToken.type !== "number") {
+        throw new Error(`Unexpected token: ${nextToken}`);
+      }
+      materials[materials.length - 1].illum = nextToken.value;
+      position += 2;
+      continue;
+    } else if (token.type === "keyword" && token.value === "Ka") {
+      const r = tokens[position + 1];
+      const g = tokens[position + 2];
+      const b = tokens[position + 3];
+
+      if (r.type !== "number" || g.type !== "number" || b.type !== "number") {
+        throw new Error(`Unexpected token: ${r} ${g} ${b}`);
+      }
+
+      materials[materials.length - 1].Ka = [r.value, g.value, b.value];
+      position += 4;
+      continue;
+    } else if (token.type === "keyword" && token.value === "Kd") {
+      const r = tokens[position + 1];
+      const g = tokens[position + 2];
+      const b = tokens[position + 3];
+
+      if (r.type !== "number" || g.type !== "number" || b.type !== "number") {
+        throw new Error(`Unexpected token: ${r} ${g} ${b}`);
+      }
+
+      materials[materials.length - 1].Kd = [r.value, g.value, b.value];
+      position += 4;
+      continue;
+    } else if (token.type === "keyword" && token.value === "Ks") {
+      const r = tokens[position + 1];
+      const g = tokens[position + 2];
+      const b = tokens[position + 3];
+
+      if (r.type !== "number" || g.type !== "number" || b.type !== "number") {
+        throw new Error(`Unexpected token: ${r} ${g} ${b}`);
+      }
+
+      materials[materials.length - 1].Ks = [r.value, g.value, b.value];
+      position += 4;
+      continue;
+    } else if (token.type === "keyword" && token.value === "Ke") {
+      const r = tokens[position + 1];
+      const g = tokens[position + 2];
+      const b = tokens[position + 3];
+
+      if (r.type !== "number" || g.type !== "number" || b.type !== "number") {
+        throw new Error(`Unexpected token: ${r} ${g} ${b}`);
+      }
+
+      materials[materials.length - 1].Ke = [r.value, g.value, b.value];
+      position += 4;
+      continue;
+    } else if (token.type === "keyword" && token.value === "d") {
+      const nextToken = tokens[position + 1];
+      if (nextToken.type !== "number") {
+        throw new Error(`Unexpected token: ${nextToken}`);
+      }
+      materials[materials.length - 1].d = nextToken.value;
+      position += 2;
+      continue;
+    } else if (token.type === "keyword" && token.value === "Tr") {
+      const nextToken = tokens[position + 1];
+      if (nextToken.type !== "number") {
+        throw new Error(`Unexpected token: ${nextToken}`);
+      }
+      materials[materials.length - 1].Tr = nextToken.value;
+      position += 2;
+      continue;
+    } else if (token.type === "keyword" && token.value === "Tf") {
+      const r = tokens[position + 1];
+      const g = tokens[position + 2];
+      const b = tokens[position + 3];
+
+      if (r.type !== "number" || g.type !== "number" || b.type !== "number") {
+        throw new Error(`Unexpected token: ${r} ${g} ${b}`);
+      }
+
+      materials[materials.length - 1].Tf = [r.value, g.value, b.value];
+      position += 4;
+      continue;
+    } else {
+      throw new Error(`Unexpected token: ${token}`);
+    }
+  }
+
+  return materials;
+};
+
+const tokenizeObj = (raw: string) => {
+  let position = 0;
+  const tokens: (
+    | {
+        type: "identifier";
+        value: string;
+      }
+    | {
+        type: "number";
+        value: number;
+      }
+    | {
+        type: "keyword";
+        value: string;
+      }
+  )[] = [];
+
+  while (position < raw.length) {
+    if (raw[position] === "#") {
+      while (raw[position] !== "\n") {
+        position++;
+      }
+
+      continue;
+    }
+
+    if (raw[position].match(/\s/)) {
+      position++;
+      continue;
+    }
+
+    const keywords = ["mtllib", "vt", "vn", "v", "g", "usemtl", "f"];
+    let should_continue = false;
+    for (const keyword of keywords) {
+      if (
+        raw.slice(position).startsWith(keyword) &&
+        raw[position + keyword.length].match(/\s/)
+      ) {
+        tokens.push({
+          type: "keyword",
+          value: keyword,
+        });
+        position += keyword.length;
+        should_continue = true;
+        break;
+      }
+    }
+    if (should_continue) continue;
+
+    if (raw.slice(position, position + 2).match(/[a-zA-Z][a-zA-Z\-\.]/)) {
+      const start = position;
+      while (position < raw.length && raw[position].match(/[a-zA-Z\-\.]/)) {
+        position++;
+      }
+      tokens.push({
+        type: "identifier",
+        value: raw.slice(start, position),
+      });
+      continue;
+    }
+    if (raw[position].match(/[0-9\.\-]/)) {
+      const start = position;
+      while (position < raw.length && raw[position].match(/[0-9\.\-]/)) {
+        position++;
+      }
+      tokens.push({
+        type: "number",
+        value: parseFloat(raw.slice(start, position)),
+      });
+      continue;
+    }
+
+    console.log(raw[position].charCodeAt(0));
+
+    throw new Error(`Unexpected token: ${raw.slice(position, position + 50)}`);
+  }
+
+  return tokens;
+};
+
+export interface SceneObj {
+  mtllib?: string;
+  objects: {
+    name: string;
+    vertices: vec3[];
+    faces: number[][];
+    usemtl: string;
+  }[];
+}
+
+export const loadObjScene = (raw: string) => {
+  let position = 0;
+  const tokens = tokenizeObj(raw);
+
+  const scene: SceneObj = {
+    objects: [],
+  };
+  let vertices: vec3[] = [];
+
+  while (position < tokens.length) {
+    const token = tokens[position];
+    if (token.type === "keyword" && token.value === "mtllib") {
+      const nextToken = tokens[position + 1];
+      if (nextToken.type !== "identifier") {
+        throw new Error(`Unexpected token: ${nextToken}`);
+      }
+      scene.mtllib = nextToken.value;
+      position += 2;
+      continue;
+    } else if (token.type === "keyword" && token.value === "v") {
+      const x = tokens[position + 1];
+      const y = tokens[position + 2];
+      const z = tokens[position + 3];
+
+      if (x.type !== "number" || y.type !== "number" || z.type !== "number") {
+        throw new Error(
+          `Unexpected token [v]: ${JSON.stringify(x)} ${JSON.stringify(
+            y
+          )} ${JSON.stringify(z)}`
+        );
+      }
+
+      vertices.push([x.value, y.value, z.value]);
+      position += 4;
+      continue;
+    } else if (token.type === "keyword" && token.value === "g") {
+      const nextToken = tokens[position + 1];
+      if (nextToken.type !== "identifier") {
+        throw new Error(`Unexpected token [g]: ${JSON.stringify(nextToken)}`);
+      }
+      const name = nextToken.value;
+      const object = {
+        name,
+        vertices,
+        faces: [],
+        usemtl: "",
+      };
+      scene.objects.push(object);
+      position += 2;
+      vertices = [];
+      continue;
+    } else if (token.type === "keyword" && token.value === "usemtl") {
+      const nextToken = tokens[position + 1];
+      if (nextToken.type !== "identifier") {
+        throw new Error(`Unexpected token: ${nextToken}`);
+      }
+      scene.objects[scene.objects!.length - 1].usemtl = nextToken.value;
+      position += 2;
+      continue;
+    } else if (token.type === "keyword" && token.value === "f") {
+      const t1 = tokens[position + 1];
+      const t2 = tokens[position + 2];
+      const t3 = tokens[position + 3];
+      const t4 = tokens[position + 4];
+
+      if (
+        t1.type !== "number" ||
+        t2.type !== "number" ||
+        t3.type !== "number" ||
+        t4.type !== "number"
+      ) {
+        throw new Error(`Unexpected token [f]: ${t1} ${t2} ${t3} ${t4}`);
+      }
+
+      scene.objects[scene.objects!.length - 1].faces.push([
+        t1.value,
+        t2.value,
+        t3.value,
+        t4.value,
+      ]);
+      position += 5;
+      continue;
+    } else {
+      throw new Error(`Unexpected token: ${JSON.stringify(token)}`);
+    }
+  }
+
+  return scene;
 };

@@ -145,12 +145,7 @@ layout(std140) uniform Rectangles {
     Rectangle rectangles[MAX_N_RECTANGLES];
 };
 
-const int MAX_N_TRIANGLES = 1;
 uniform int n_triangles;
-
-layout(std140) uniform Triangles {
-    Triangle triangles[MAX_N_TRIANGLES];
-};
 
 vec4 getValueFromTexture(sampler2D tex, int index, int size) {
     int x = index % size;

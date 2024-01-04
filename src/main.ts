@@ -6,7 +6,14 @@ import GUI from "lil-gui";
 import Stats from "stats.js";
 import cornellScene from "./scenes/cornell-box/scene.xml?raw";
 import veachBidirScene from "./scenes/veach-bidir/scene.xml?raw";
-import { Triangle, loadScene, transformIntoCamera } from "./scene";
+import cornellboxOriginalScene from "./scenes/cornell-box-mtl/CornellBox-Original.obj?raw";
+import {
+  Triangle,
+  loadMitsubaScene,
+  loadMtlScene,
+  loadObjScene,
+  transformIntoCamera,
+} from "./scene";
 import { mat4, vec3, vec4 } from "gl-matrix";
 import { createProgramFromSource, createVao, diagnoseGlError } from "./webgl";
 
@@ -20,7 +27,8 @@ const renderTypes = ["render", "color", "normal"];
 const scenes = ["cornell-box", "veach-bidir"];
 
 const main = async () => {
-  const scene = await loadScene(veachBidirScene);
+  console.log(loadObjScene(cornellboxOriginalScene));
+  const scene = await loadMitsubaScene(veachBidirScene);
   const shapes: {
     type: "rectangle" | "cube" | "mesh";
     points: vec3[];
@@ -707,7 +715,6 @@ const main = async () => {
       .flat()
   );
 
-  const MAX_N_TRIANGLES = 1;
   const triangles: {
     type: "triangle";
     triangle: {
@@ -722,10 +729,6 @@ const main = async () => {
   shapes.forEach((shape) => {
     if (shape.type === "mesh") {
       shape.model!.forEach((triangle) => {
-        if (triangles.length >= MAX_N_TRIANGLES) {
-          return;
-        }
-
         let e1 = vec3.create();
         vec3.subtract(e1, triangle.vertices[1], triangle.vertices[0]);
 
@@ -746,34 +749,6 @@ const main = async () => {
       });
     }
   });
-  const trianglesData = new Float32Array(
-    Array.from({
-      length: MAX_N_TRIANGLES,
-    })
-      .map((_, i) => {
-        const triangle = triangles[i] ?? {
-          triangle: {
-            vertex: [0.0, 0.0, 0.0],
-            edge1: [0.0, 0.0, 0.0],
-            edge2: [0.0, 0.0, 0.0],
-          },
-          emission: [0.0, 0.0, 0.0],
-          color: [0.0, 0.0, 0.0],
-          reflection: "diffuse",
-        };
-
-        return [
-          ...triangle.triangle.vertex,
-          0.0, // padding
-          ...triangle.triangle.edge1,
-          0.0, // padding
-          ...triangle.triangle.edge2,
-          0.0, // padding
-        ];
-      })
-      .flat()
-  );
-  console.log(triangles.length);
 
   gl.uniformBlockBinding(
     program,
@@ -784,11 +759,6 @@ const main = async () => {
     program,
     gl.getUniformBlockIndex(program, "Rectangles"),
     1
-  );
-  gl.uniformBlockBinding(
-    program,
-    gl.getUniformBlockIndex(program, "Triangles"),
-    2
   );
 
   const sphereUbo = gl.createBuffer();
@@ -814,18 +784,6 @@ const main = async () => {
   gl.bindBuffer(gl.UNIFORM_BUFFER, null);
 
   gl.bindBufferBase(gl.UNIFORM_BUFFER, 1, rectangleUbo);
-
-  const triangleUbo = gl.createBuffer();
-  if (!triangleUbo) {
-    console.error("Failed to create buffer");
-    return;
-  }
-
-  gl.bindBuffer(gl.UNIFORM_BUFFER, triangleUbo);
-  gl.bufferData(gl.UNIFORM_BUFFER, trianglesData, gl.DYNAMIC_DRAW);
-  gl.bindBuffer(gl.UNIFORM_BUFFER, null);
-
-  gl.bindBufferBase(gl.UNIFORM_BUFFER, 2, triangleUbo);
 
   const textureSize = 4096;
   const triangleTextureData = new Float32Array(textureSize * textureSize * 4);
@@ -892,7 +850,7 @@ const main = async () => {
       gl.uniform1i(programLocations.spp, value.spp);
       gl.uniform1i(programLocations.n_spheres, 0);
       gl.uniform1i(programLocations.n_rectangles, rectangles.length);
-      gl.uniform1i(programLocations.n_triangles, triangles.length);
+      gl.uniform1i(programLocations.n_triangles, 500);
       gl.uniform1i(
         programLocations.render_type,
         renderTypes.indexOf(value.renderType)
