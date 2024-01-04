@@ -1,3 +1,5 @@
+import { vec3 } from "gl-matrix";
+
 export interface Shape {
   type: string;
   bsdf?: {
@@ -8,6 +10,7 @@ export interface Shape {
     radiance: [number, number, number];
   };
   matrix: number[];
+  model?: Triangle[];
 }
 
 export interface Scene {
@@ -16,7 +19,7 @@ export interface Scene {
 
 type DeepPartial<T> = { [P in keyof T]?: DeepPartial<T[P]> } | undefined;
 
-export const loadScene = (xml: string) => {
+export const loadScene = async (xml: string) => {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xml, "text/xml");
 
@@ -38,7 +41,7 @@ export const loadScene = (xml: string) => {
       }
     }
   };
-  const parseShape = (element: Element): DeepPartial<Shape> => {
+  const parseShape = async (element: Element): Promise<DeepPartial<Shape>> => {
     let shape: DeepPartial<Shape> = {};
 
     for (const child of element.children) {
@@ -58,6 +61,8 @@ export const loadScene = (xml: string) => {
           .getAttribute("value")!
           .split(" ")
           .map(parseFloat);
+      } else if (child.nodeName === "string") {
+        shape.model = await loadObjFile(child.getAttribute("value")!);
       }
     }
 
@@ -68,14 +73,19 @@ export const loadScene = (xml: string) => {
     shapes: [],
   };
 
+  const promises: (() => Promise<void>)[] = [];
   xmlDoc.querySelectorAll("shape").forEach((shape) => {
-    const parsed = parseShape(shape);
+    promises.push(async () => {
+      const parsed = await parseShape(shape);
 
-    scene.shapes.push({
-      ...parsed,
-      type: shape.getAttribute("type")!,
-    } as Shape);
+      scene.shapes.push({
+        ...parsed,
+        type: shape.getAttribute("type")!,
+      } as Shape);
+    });
   });
+
+  await Promise.all(promises.map((p) => p()));
 
   return scene;
 };
@@ -86,4 +96,42 @@ export const transformIntoCamera = (matrix: number[]) => {
     direction: [matrix[2], matrix[6], matrix[10]] as [number, number, number],
     up: [matrix[1], matrix[5], matrix[9]] as [number, number, number],
   };
+};
+
+const sceneFiles = import.meta.glob("./scenes/**/*", { as: "raw" });
+
+interface Triangle {
+  vertices: [vec3, vec3, vec3];
+  normals: [vec3, vec3, vec3];
+}
+
+export const loadObjFile = async (objFile: string) => {
+  const raw = await sceneFiles[`./scenes/veach-bidir/${objFile}`]();
+
+  const vertices: vec3[] = [];
+  const normals: vec3[] = [];
+  const faces: Triangle[] = [];
+  raw.split("\n").forEach((line) => {
+    if (line.startsWith("v ")) {
+      const [x, y, z] = line.split(" ").slice(1).map(parseFloat);
+      vertices.push([x, y, z]);
+    } else if (line.startsWith("vn ")) {
+      const [x, y, z] = line.split(" ").slice(1).map(parseFloat);
+      normals.push([x, y, z]);
+    } else if (line.startsWith("f ")) {
+      const [t1, t2, t3] = line
+        .split(" ")
+        .slice(1)
+        .map((v) => {
+          const [vi, ti, ni] = v.split("/").map((i) => parseInt(i) - 1);
+          return [vi, ti, ni] as [number, number, number];
+        });
+      faces.push({
+        vertices: [vertices[t1[0]], vertices[t2[0]], vertices[t3[0]]],
+        normals: [normals[t1[2]], normals[t2[2]], normals[t3[2]]],
+      });
+    }
+  });
+
+  return faces;
 };

@@ -5,6 +5,7 @@ import rendererFragSource from "./glsl/renderer.frag?raw";
 import GUI from "lil-gui";
 import Stats from "stats.js";
 import cornellScene from "./scenes/cornell-box/scene.xml?raw";
+import veachBidirScene from "./scenes/veach-bidir/scene.xml?raw";
 import { loadScene, transformIntoCamera } from "./scene";
 import { mat4, vec3, vec4 } from "gl-matrix";
 import { createProgramFromSource, createVao, diagnoseGlError } from "./webgl";
@@ -16,9 +17,10 @@ const reflectionTypes = {
 };
 
 const renderTypes = ["render", "color", "normal"];
+const scenes = ["cornell-box", "veach-bidir"];
 
-const main = () => {
-  const scene = loadScene(cornellScene);
+const main = async () => {
+  const scene = await loadScene(veachBidirScene);
   const shapes: {
     type: "rectangle" | "cube";
     points: vec3[];
@@ -149,7 +151,9 @@ const main = () => {
         });
       });
     } else {
-      console.warn(`Unknown shape type: ${shape.type} (${shape})`);
+      console.warn(
+        `Unknown shape type: ${shape.type} (${JSON.stringify(shape)})`
+      );
     }
   });
 
@@ -443,6 +447,7 @@ const main = () => {
         tick: true,
         renderType: "render",
         spp: 1,
+        scene: "cornell-box",
       };
     }
   };
@@ -465,6 +470,12 @@ const main = () => {
     });
   gui.add(value, "renderType", renderTypes).onChange((v: string) => {
     value.renderType = v;
+    reset();
+    saveSettings(value);
+  });
+  gui.add({ reset }, "reset");
+  gui.add(value, "scene", scenes).onChange((v: string) => {
+    value.scene = v;
     reset();
     saveSettings(value);
   });
