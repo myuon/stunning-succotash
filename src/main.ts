@@ -196,12 +196,21 @@ const main = async () => {
   console.log(gl.getParameter(gl.MAX_COMBINED_UNIFORM_BLOCKS));
   console.log(gl.getParameter(gl.MAX_TEXTURE_SIZE));
 
+  let up = vec3.create();
+  vec3.normalize(up, [0.0, 1.0, 0.0]);
+
+  let dir = vec3.create();
+  vec3.normalize(dir, [0.0, 0.0, -1.0]);
+
   const camera = {
-    ...transformIntoCamera(
-      "-0.00500708 -0.00467005 -0.999977 16.2155 0 0.999989 -0.00467011 4.05167 0.999987 -2.34659e-005 -0.00502464 0.0114864 0 0 0 1"
-        .split(" ")
-        .map(parseFloat)
-    ),
+    // ...transformIntoCamera(
+    //   "-0.00500708 -0.00467005 -0.999977 16.2155 0 0.999989 -0.00467011 4.05167 0.999987 -2.34659e-005 -0.00502464 0.0114864 0 0 0 1"
+    //     .split(" ")
+    //     .map(parseFloat)
+    // ),
+    position: vec3.fromValues(0.0, 1.0, 5.0),
+    up,
+    direction: dir,
     screen_dist: 8,
   };
   console.log(camera);
@@ -796,6 +805,7 @@ const main = async () => {
       }
     });
   });
+  console.log(triangles);
 
   gl.uniformBlockBinding(
     program,
@@ -832,7 +842,7 @@ const main = async () => {
 
   gl.bindBufferBase(gl.UNIFORM_BUFFER, 1, rectangleUbo);
 
-  const textureSize = 4096;
+  const textureSize = 1024;
   const triangleTextureData = new Float32Array(textureSize * textureSize * 4);
   triangles.forEach((triangle, i) => {
     const size = 24;
@@ -840,17 +850,14 @@ const main = async () => {
     triangleTextureData[i * size + 0] = triangle.triangle.vertex[0];
     triangleTextureData[i * size + 1] = triangle.triangle.vertex[1];
     triangleTextureData[i * size + 2] = triangle.triangle.vertex[2];
-    triangleTextureData[i * size + 3] = 0;
 
     triangleTextureData[i * size + 4] = triangle.triangle.edge1[0];
     triangleTextureData[i * size + 5] = triangle.triangle.edge1[1];
     triangleTextureData[i * size + 6] = triangle.triangle.edge1[2];
-    triangleTextureData[i * size + 7] = 0;
 
     triangleTextureData[i * size + 8] = triangle.triangle.edge2[0];
     triangleTextureData[i * size + 9] = triangle.triangle.edge2[1];
     triangleTextureData[i * size + 10] = triangle.triangle.edge2[2];
-    triangleTextureData[i * size + 11] = 0;
   });
 
   gl.activeTexture(gl.TEXTURE1);
@@ -896,7 +903,7 @@ const main = async () => {
       gl.uniform1f(programLocations.screen_dist, camera.screen_dist);
       gl.uniform1i(programLocations.spp, value.spp);
       gl.uniform1i(programLocations.n_spheres, 0);
-      gl.uniform1i(programLocations.n_rectangles, rectangles.length);
+      gl.uniform1i(programLocations.n_rectangles, 0);
       gl.uniform1i(programLocations.n_triangles, triangles.length);
       gl.uniform1i(
         programLocations.render_type,

@@ -147,18 +147,15 @@ layout(std140) uniform Rectangles {
 
 uniform int n_triangles;
 
-vec4 getValueFromTexture(sampler2D tex, int index, int size) {
-    int x = index % size;
-    int y = index / size;
-    return texture(tex, vec2(x, y));
-}
-
-const int textureSize = 4096;
+const int textureSize = 1024;
 Triangle fetchTriangle(int index) {
     int size = 24 / 4;
-    vec3 vertex = getValueFromTexture(triangles_texture, index * size, textureSize).xyz;
-    vec3 edge1 = getValueFromTexture(triangles_texture, index * size + 1, textureSize).xyz;
-    vec3 edge2 = getValueFromTexture(triangles_texture, index * size + 2, textureSize).xyz;
+    int x = index % size;
+    int y = index / size;
+
+    vec3 vertex = texture(triangles_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).xyz;
+    vec3 edge1 = texture(triangles_texture, vec2(float(x + 1) / float(textureSize), float(y) / float(textureSize))).xyz;
+    vec3 edge2 = texture(triangles_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).xyz;
 
     return Triangle(vertex, edge1, edge2);
 }
@@ -267,6 +264,8 @@ vec3 raytrace(Ray ray) {
             } else if (hit.type == TTriangle) {
                 // return triangles[hit.index].color;
                 return vec3(0.25);
+            } else {
+                return vec3(1, 0, 1);
             }
         }
 
