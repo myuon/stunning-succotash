@@ -6,7 +6,7 @@ import GUI from "lil-gui";
 import Stats from "stats.js";
 import cornellScene from "./scenes/cornell-box/scene.xml?raw";
 import veachBidirScene from "./scenes/veach-bidir/scene.xml?raw";
-import { loadScene, transformIntoCamera } from "./scene";
+import { Triangle, loadScene, transformIntoCamera } from "./scene";
 import { mat4, vec3, vec4 } from "gl-matrix";
 import { createProgramFromSource, createVao, diagnoseGlError } from "./webgl";
 
@@ -22,11 +22,12 @@ const scenes = ["cornell-box", "veach-bidir"];
 const main = async () => {
   const scene = await loadScene(veachBidirScene);
   const shapes: {
-    type: "rectangle" | "cube";
+    type: "rectangle" | "cube" | "mesh";
     points: vec3[];
     color: vec3;
     emission: vec3;
     reflection: "diffuse" | "specular" | "refractive";
+    model?: Triangle[];
   }[] = [];
   scene.shapes.forEach((shape) => {
     if (shape.type === "rectangle") {
@@ -150,6 +151,19 @@ const main = async () => {
           reflection: "diffuse",
         });
       });
+    } else if (shape.type === "obj") {
+      shapes.push({
+        type: "mesh",
+        points: [],
+        model: shape.model,
+        color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+        emission: [
+          shape.emitter?.radiance[0] ?? 0.0,
+          shape.emitter?.radiance[1] ?? 0.0,
+          shape.emitter?.radiance[2] ?? 0.0,
+        ],
+        reflection: "diffuse",
+      });
     } else {
       console.warn(
         `Unknown shape type: ${shape.type} (${JSON.stringify(shape)})`
@@ -166,10 +180,13 @@ const main = async () => {
   }
 
   console.log(gl.getExtension("EXT_color_buffer_float")!);
+  console.log(gl.getParameter(gl.MAX_COMBINED_UNIFORM_BLOCKS));
 
   const camera = {
     ...transformIntoCamera(
-      "-1 0 0 0 0 1 0 1 0 0 -1 6.8 0 0 0 1".split(" ").map(parseFloat)
+      "-0.00500708 -0.00467005 -0.999977 16.2155 0 0.999989 -0.00467011 4.05167 0.999987 -2.34659e-005 -0.00502464 0.0114864 0 0 0 1"
+        .split(" ")
+        .map(parseFloat)
     ),
     screen_dist: 8,
   };
@@ -195,6 +212,7 @@ const main = async () => {
     spp: gl.getUniformLocation(program, "spp"),
     n_spheres: gl.getUniformLocation(program, "n_spheres"),
     n_rectangles: gl.getUniformLocation(program, "n_rectangles"),
+    n_triangles: gl.getUniformLocation(program, "n_triangles"),
     render_type: gl.getUniformLocation(program, "render_type"),
   };
 
@@ -570,7 +588,7 @@ const main = async () => {
           ...sphere.center,
           sphere.radius,
           ...sphere.emission,
-          0.0, // is this happening because of padding?
+          0.0, // padding
           ...sphere.color,
           reflectionTypes[sphere.reflection],
         ];
@@ -687,6 +705,74 @@ const main = async () => {
       .flat()
   );
 
+  const MAX_N_TRIANGLES = 1000;
+  const triangles: {
+    type: "triangle";
+    triangle: {
+      vertex: vec3;
+      edge1: vec3;
+      edge2: vec3;
+    };
+    emission: vec3;
+    color: vec3;
+    reflection: "diffuse" | "specular" | "refractive";
+  }[] = [];
+  shapes.forEach((shape) => {
+    if (shape.type === "mesh") {
+      shape.model!.forEach((triangle) => {
+        if (triangles.length >= MAX_N_TRIANGLES) {
+          return;
+        }
+
+        let e1 = vec3.create();
+        vec3.subtract(e1, triangle.vertices[1], triangle.vertices[0]);
+
+        let e2 = vec3.create();
+        vec3.subtract(e2, triangle.vertices[2], triangle.vertices[0]);
+
+        triangles.push({
+          type: "triangle",
+          triangle: {
+            vertex: triangle.vertices[0],
+            edge1: e1,
+            edge2: e2,
+          },
+          emission: shape.emission,
+          color: shape.color,
+          reflection: shape.reflection,
+        });
+      });
+    }
+  });
+  const trianglesData = new Float32Array(
+    Array.from({
+      length: MAX_N_TRIANGLES,
+    })
+      .map((_, i) => {
+        const triangle = triangles[i] ?? {
+          triangle: {
+            vertex: [0.0, 0.0, 0.0],
+            edge1: [0.0, 0.0, 0.0],
+            edge2: [0.0, 0.0, 0.0],
+          },
+          emission: [0.0, 0.0, 0.0],
+          color: [0.0, 0.0, 0.0],
+          reflection: "diffuse",
+        };
+
+        return [
+          ...triangle.triangle.vertex,
+          0.0, // padding
+          ...triangle.triangle.edge1,
+          0.0, // padding
+          ...triangle.triangle.edge2,
+          0.0, // padding
+        ];
+      })
+      .flat()
+  );
+  console.log(triangles.length);
+
   gl.uniformBlockBinding(
     program,
     gl.getUniformBlockIndex(program, "Spheres"),
@@ -696,6 +782,11 @@ const main = async () => {
     program,
     gl.getUniformBlockIndex(program, "Rectangles"),
     1
+  );
+  gl.uniformBlockBinding(
+    program,
+    gl.getUniformBlockIndex(program, "Triangles"),
+    2
   );
 
   const sphereUbo = gl.createBuffer();
@@ -722,6 +813,18 @@ const main = async () => {
 
   gl.bindBufferBase(gl.UNIFORM_BUFFER, 1, rectangleUbo);
 
+  const triangleUbo = gl.createBuffer();
+  if (!triangleUbo) {
+    console.error("Failed to create buffer");
+    return;
+  }
+
+  gl.bindBuffer(gl.UNIFORM_BUFFER, triangleUbo);
+  gl.bufferData(gl.UNIFORM_BUFFER, trianglesData, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+
+  gl.bindBufferBase(gl.UNIFORM_BUFFER, 2, triangleUbo);
+
   const loop = () => {
     stats.begin();
 
@@ -743,6 +846,7 @@ const main = async () => {
       gl.uniform1i(programLocations.spp, value.spp);
       gl.uniform1i(programLocations.n_spheres, 0);
       gl.uniform1i(programLocations.n_rectangles, rectangles.length);
+      gl.uniform1i(programLocations.n_triangles, triangles.length);
       gl.uniform1i(
         programLocations.render_type,
         renderTypes.indexOf(value.renderType)

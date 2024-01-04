@@ -118,15 +118,6 @@ struct Rectangle {
     uint reflection_type;
 };
 
-Rectangle Rectangle_new(vec3[4] points, vec3 emission, vec3 color, uint reflection_type) {
-    Triangle[2] mesh = Triangle[](
-        Triangle(points[0], points[1] - points[0], points[2] - points[0]),
-        Triangle(points[0], points[3] - points[0], points[2] - points[0])
-    );
-
-    return Rectangle(mesh, emission, color, reflection_type);
-}
-
 HitRecord Rectangle_intersect(Rectangle self, Ray ray) {
     for (int i = 0; i < self.mesh.length(); i++) {
         HitRecord hit = Triangle_intersect(self.mesh[i], ray);
@@ -153,8 +144,16 @@ layout(std140) uniform Rectangles {
     Rectangle rectangles[MAX_N_RECTANGLES];
 };
 
+const int MAX_N_TRIANGLES = 1000;
+uniform int n_triangles;
+
+layout(std140) uniform Triangles {
+    Triangle triangles[MAX_N_TRIANGLES];
+};
+
 const uint TSphere = 0u;
 const uint TRectangle = 1u;
+const uint TTriangle = 2u;
 
 struct HitInScene {
     int index;
@@ -217,6 +216,22 @@ HitInScene intersect(Ray ray){
             }
         }
     }
+    for(int i = 0; i < n_triangles; i++){
+        Triangle obj = triangles[i];
+        HitRecord r = Triangle_intersect(obj, ray);
+
+        if (r.hit) {
+            float t = length(r.point - ray.origin);
+            if (t < dist) {
+                dist = t;
+                hit.index = i;
+                hit.type = TTriangle;
+                hit.r = r;
+
+                continue;
+            }
+        }
+    }
 
     return hit;
 }
@@ -237,6 +252,9 @@ vec3 raytrace(Ray ray) {
                 return spheres[hit.index].color;
             } else if (hit.type == TRectangle) {
                 return rectangles[hit.index].color;
+            } else if (hit.type == TTriangle) {
+                // return triangles[hit.index].color;
+                return vec3(0.25);
             }
         }
 
@@ -250,6 +268,9 @@ vec3 raytrace(Ray ray) {
             color += spheres[hit.index].emission * weight;
         } else if (hit.type == TRectangle) {
             color += rectangles[hit.index].emission * weight;
+        } else if (hit.type == TTriangle) {
+            // color += triangles[hit.index].emission * weight;
+            color += vec3(0.25);
         }
 
         float russian_roulette_threshold = 0.5;
@@ -272,6 +293,9 @@ vec3 raytrace(Ray ray) {
             weight *= spheres[hit.index].color * 1.0 / russian_roulette_threshold;
         } else if (hit.type == TRectangle) {
             weight *= rectangles[hit.index].color * 1.0 / russian_roulette_threshold;
+        } else if (hit.type == TTriangle) {
+            // weight *= triangles[hit.index].color * 1.0 / russian_roulette_threshold;
+            weight *= vec3(0.25) * 1.0 / russian_roulette_threshold;
         }
         count++;
     }

@@ -100,7 +100,7 @@ export const transformIntoCamera = (matrix: number[]) => {
 
 const sceneFiles = import.meta.glob("./scenes/**/*", { as: "raw" });
 
-interface Triangle {
+export interface Triangle {
   vertices: [vec3, vec3, vec3];
   normals: [vec3, vec3, vec3];
 }
