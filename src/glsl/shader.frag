@@ -76,6 +76,9 @@ struct Triangle {
     vec3 vertex;
     vec3 edge1;
     vec3 edge2;
+    vec3 normal0;
+    vec3 normal1;
+    vec3 normal2;
     int material_id;
     bool smooth_normal;
 };
@@ -100,6 +103,11 @@ HitRecord Triangle_intersect(Triangle self, Ray ray) {
         return HitRecord(false, vec3(0.0), vec3(0.0));
     }
 
+    if (self.smooth_normal) {
+        vec3 normal = normalize(self.normal0 * (1.0 - u - v) + self.normal1 * u + self.normal2 * v);
+        return HitRecord(true, normal, ray.origin + ray.direction * t);
+    }
+
     return HitRecord(true, normalize(cross(self.edge1, self.edge2)), ray.origin + ray.direction * t);
 }
 
@@ -116,8 +124,11 @@ Triangle fetchTriangle(int index) {
     vec3 edge1 = texture(triangles_texture, vec2(float(x + 1) / float(textureSize), float(y) / float(textureSize))).xyz;
     vec3 edge2 = texture(triangles_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).xyz;
     float smooth_normal = texture(triangles_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).w;
+    vec3 normal0 = texture(triangles_texture, vec2(float(x + 3) / float(textureSize), float(y) / float(textureSize))).xyz;
+    vec3 normal1 = texture(triangles_texture, vec2(float(x + 4) / float(textureSize), float(y) / float(textureSize))).xyz;
+    vec3 normal2 = texture(triangles_texture, vec2(float(x + 5) / float(textureSize), float(y) / float(textureSize))).xyz;
 
-    return Triangle(vertex, edge1, edge2, int(material_id), smooth_normal > 0.0);
+    return Triangle(vertex, edge1, edge2, normal0, normal1, normal2, int(material_id), smooth_normal > 0.0);
 }
 
 struct Material {
@@ -174,6 +185,7 @@ HitInScene intersect(Ray ray){
 void next_ray(HitInScene hit, float seed, inout Ray ray, out float weight_delta) {
     vec3 orienting_normal = dot(hit.r.normal, ray.direction) < 0.0 ? hit.r.normal : -hit.r.normal;
     weight_delta = 1.0;
+    ray.origin = hit.r.point + orienting_normal * kEPS;
 
     if (hit.type == TTriangle) {
         Triangle t = fetchTriangle(hit.index);
@@ -184,22 +196,18 @@ void next_ray(HitInScene hit, float seed, inout Ray ray, out float weight_delta)
             float r = rand(vec2(seed, m.specular_weight) + hit.r.point.xy);
             if (r < specular_prob) {
                 ray.direction = reflect(ray.direction, orienting_normal);
-                ray.origin = hit.r.point + ray.direction * kEPS;
 
                 weight_delta = 1.0 / specular_prob;
             } else {
                 ray.direction = randOnHemisphere(orienting_normal, seed);
-                ray.origin = hit.r.point + ray.direction * kEPS;
 
                 weight_delta = 1.0 / (1.0 - specular_prob);
             }
         } else {
             ray.direction = randOnHemisphere(orienting_normal, seed);
-            ray.origin = hit.r.point + ray.direction * kEPS;
         }
     } else {
         ray.direction = randOnHemisphere(orienting_normal, seed);
-        ray.origin = hit.r.point + ray.direction * kEPS;
     }
 }
 

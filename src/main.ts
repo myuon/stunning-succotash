@@ -537,6 +537,9 @@ const main = async () => {
       vertex: vec3;
       edge1: vec3;
       edge2: vec3;
+      normal1?: vec3;
+      normal2?: vec3;
+      normal3?: vec3;
     };
     emission: vec3;
     color: vec3;
@@ -599,6 +602,9 @@ const main = async () => {
             vertex: f.vertices[0],
             edge1: e10,
             edge2: e20,
+            normal1: f.normals[0],
+            normal2: f.normals[1],
+            normal3: f.normals[2],
           },
           emission: [0.0, 0.0, 0.0],
           color: [0.75, 0.75, 0.75],
@@ -682,6 +688,18 @@ const main = async () => {
     triangleTextureData[i * size + 9] = triangle.triangle.edge2[1];
     triangleTextureData[i * size + 10] = triangle.triangle.edge2[2];
     triangleTextureData[i * size + 11] = triangle.smooth ? 1.0 : 0.0;
+
+    triangleTextureData[i * size + 12] = triangle.triangle.normal1?.[0] ?? 0.0;
+    triangleTextureData[i * size + 13] = triangle.triangle.normal1?.[1] ?? 0.0;
+    triangleTextureData[i * size + 14] = triangle.triangle.normal1?.[2] ?? 0.0;
+
+    triangleTextureData[i * size + 16] = triangle.triangle.normal2?.[0] ?? 0.0;
+    triangleTextureData[i * size + 17] = triangle.triangle.normal2?.[1] ?? 0.0;
+    triangleTextureData[i * size + 18] = triangle.triangle.normal2?.[2] ?? 0.0;
+
+    triangleTextureData[i * size + 20] = triangle.triangle.normal3?.[0] ?? 0.0;
+    triangleTextureData[i * size + 21] = triangle.triangle.normal3?.[1] ?? 0.0;
+    triangleTextureData[i * size + 22] = triangle.triangle.normal3?.[2] ?? 0.0;
   });
 
   gl.activeTexture(gl.TEXTURE1);
