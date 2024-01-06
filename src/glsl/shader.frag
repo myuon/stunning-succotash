@@ -150,8 +150,8 @@ uniform int n_triangles;
 const int textureSize = 1024;
 Triangle fetchTriangle(int index) {
     int size = 24 / 4;
-    int x = index % size;
-    int y = index / size;
+    int x = (index * size) % textureSize;
+    int y = (index * size) / textureSize;
 
     vec3 vertex = texture(triangles_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).xyz;
     vec3 edge1 = texture(triangles_texture, vec2(float(x + 1) / float(textureSize), float(y) / float(textureSize))).xyz;
