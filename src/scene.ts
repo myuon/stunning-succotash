@@ -177,11 +177,7 @@ const tokenizeMtl = (
       continue;
     }
 
-    if (
-      raw[position] === " " ||
-      raw[position] === "\n" ||
-      raw[position] === "\r"
-    ) {
+    if (raw[position].match(/\s/)) {
       position++;
       continue;
     }
@@ -226,7 +222,7 @@ const tokenizeMtl = (
     }
     if (raw[position].match(/[0-9\.]/)) {
       const start = position;
-      while (raw[position].match(/[0-9\.]/)) {
+      while (position < raw.length && raw[position].match(/[0-9\.]/)) {
         position++;
       }
       tokens.push({
@@ -236,7 +232,12 @@ const tokenizeMtl = (
       continue;
     }
 
-    throw new Error(`Unexpected token: ${raw.slice(position, position + 20)}`);
+    throw new Error(
+      `Unexpected token: ${raw[position].charCodeAt(0)}, ${raw.slice(
+        position - 20,
+        position
+      )}\n@@@\n${raw.slice(position, position + 50)}`
+    );
   }
 
   return tokens;
@@ -401,6 +402,9 @@ const tokenizeObj = (raw: string) => {
         type: "keyword";
         value: string;
       }
+    | {
+        type: "slash";
+      }
   )[] = [];
 
   while (position < raw.length) {
@@ -417,7 +421,7 @@ const tokenizeObj = (raw: string) => {
       continue;
     }
 
-    const keywords = ["mtllib", "vt", "vn", "v", "g", "usemtl", "f"];
+    const keywords = ["mtllib", "vt", "vn", "v", "g", "usemtl", "f", "s"];
     let should_continue = false;
     for (const keyword of keywords) {
       if (
@@ -457,6 +461,13 @@ const tokenizeObj = (raw: string) => {
       });
       continue;
     }
+    if (raw[position] === "/") {
+      position++;
+      tokens.push({
+        type: "slash",
+      });
+      continue;
+    }
 
     console.log(raw[position].charCodeAt(0));
 
@@ -470,7 +481,10 @@ export interface SceneObj {
   mtllib?: string;
   objects: {
     name: string;
-    faces: vec3[][];
+    faces: {
+      vertices: vec3[];
+      normals: vec3[];
+    }[];
     usemtl: string;
   }[];
 }
@@ -483,6 +497,8 @@ export const loadObjScene = (raw: string) => {
     objects: [],
   };
   let vertices: vec3[] = [];
+  let vt: vec3[] = [];
+  let vn: vec3[] = [];
 
   while (position < tokens.length) {
     const token = tokens[position];
@@ -508,6 +524,38 @@ export const loadObjScene = (raw: string) => {
       }
 
       vertices.push([x.value, y.value, z.value]);
+      position += 4;
+      continue;
+    } else if (token.type === "keyword" && token.value === "vt") {
+      const x = tokens[position + 1];
+      const y = tokens[position + 2];
+      const z = tokens[position + 3];
+
+      if (x.type !== "number" || y.type !== "number" || z.type !== "number") {
+        throw new Error(
+          `Unexpected token [vt]: ${JSON.stringify(x)} ${JSON.stringify(
+            y
+          )} ${JSON.stringify(z)}`
+        );
+      }
+
+      vt.push([x.value, y.value, z.value]);
+      position += 4;
+      continue;
+    } else if (token.type === "keyword" && token.value === "vn") {
+      const x = tokens[position + 1];
+      const y = tokens[position + 2];
+      const z = tokens[position + 3];
+
+      if (x.type !== "number" || y.type !== "number" || z.type !== "number") {
+        throw new Error(
+          `Unexpected token [vn]: ${JSON.stringify(x)} ${JSON.stringify(
+            y
+          )} ${JSON.stringify(z)}`
+        );
+      }
+
+      vn.push([x.value, y.value, z.value]);
       position += 4;
       continue;
     } else if (token.type === "keyword" && token.value === "g") {
@@ -550,27 +598,70 @@ export const loadObjScene = (raw: string) => {
       position += 2;
       continue;
     } else if (token.type === "keyword" && token.value === "f") {
-      const t1 = tokens[position + 1];
-      const t2 = tokens[position + 2];
-      const t3 = tokens[position + 3];
-      const t4 = tokens[position + 4];
+      const parseV = () => {
+        const v = tokens[position];
+        if (v.type !== "number") {
+          throw new Error(`Unexpected token [f]: ${JSON.stringify(v)}`);
+        }
+        position++;
 
-      if (
-        t1.type !== "number" ||
-        t2.type !== "number" ||
-        t3.type !== "number" ||
-        t4.type !== "number"
-      ) {
-        throw new Error(`Unexpected token [f]: ${t1} ${t2} ${t3} ${t4}`);
+        if (tokens[position].type === "slash") {
+          position++;
+          const vt = tokens[position];
+          if (vt.type !== "number") {
+            throw new Error(`Unexpected token [f]: ${vt}`);
+          }
+          position++;
+
+          if (tokens[position].type === "slash") {
+            position++;
+            const vn = tokens[position];
+            if (vn.type !== "number") {
+              throw new Error(`Unexpected token [f]: ${vn}`);
+            }
+            position++;
+
+            return [v.value, vt.value, vn.value];
+          } else {
+            return [v.value, vt.value];
+          }
+        } else {
+          return [v.value];
+        }
+      };
+
+      position++;
+      const v1 = parseV();
+      const v2 = parseV();
+      const v3 = parseV();
+      let v4 = undefined;
+      const v4Token = tokens[position];
+      if (position < tokens.length && v4Token.type === "number") {
+        v4 = parseV();
       }
 
-      scene.objects[scene.objects!.length - 1].faces.push([
-        vertices[t1.value < 0 ? vertices.length + t1.value : t1.value],
-        vertices[t2.value < 0 ? vertices.length + t2.value : t2.value],
-        vertices[t3.value < 0 ? vertices.length + t3.value : t3.value],
-        vertices[t4.value < 0 ? vertices.length + t4.value : t4.value],
-      ]);
-      position += 5;
+      scene.objects[scene.objects!.length - 1].faces.push({
+        vertices: [
+          vertices[v1[0] < 0 ? vertices.length + v1[0] : v1[0]],
+          vertices[v2[0] < 0 ? vertices.length + v2[0] : v2[0]],
+          vertices[v3[0] < 0 ? vertices.length + v3[0] : v3[0]],
+          v4
+            ? vertices[v4[0] < 0 ? vertices.length + v4[0] : v4[0]]
+            : undefined,
+        ].filter((v: vec3 | undefined): v is vec3 => !!v),
+        normals:
+          v1[2] && v2[2] && v3[2]
+            ? [
+                vn[v1[2] < 0 ? vn.length + v1[2] : v1[2]],
+                vn[v2[2] < 0 ? vn.length + v2[2] : v2[2]],
+                vn[v3[2] < 0 ? vn.length + v3[2] : v3[2]],
+                v4 ? vn[v4[2] < 0 ? vn.length + v4[2] : v4[2]] : undefined,
+              ].filter((v: vec3 | undefined): v is vec3 => !!v)
+            : [],
+      });
+      continue;
+    } else if (token.type === "keyword" && token.value === "s") {
+      position += 2;
       continue;
     } else {
       throw new Error(`Unexpected token: ${JSON.stringify(token)}`);

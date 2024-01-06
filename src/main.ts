@@ -6,8 +6,8 @@ import GUI from "lil-gui";
 import Stats from "stats.js";
 import cornellScene from "./scenes/cornell-box/scene.xml?raw";
 import veachBidirScene from "./scenes/veach-bidir/scene.xml?raw";
-import cornellboxOriginalScene from "./scenes/cornell-box-mtl/CornellBox-Mirror.obj?raw";
-import cornellboxOriginalSceneMtl from "./scenes/cornell-box-mtl/CornellBox-Mirror.mtl?raw";
+import cornellboxOriginalScene from "./scenes/cornell-box-mtl/CornellBox-Glossy.obj?raw";
+import cornellboxOriginalSceneMtl from "./scenes/cornell-box-mtl/CornellBox-Glossy.mtl?raw";
 import {
   Scene,
   Triangle,
@@ -784,15 +784,12 @@ const main = async () => {
     const fs = object.faces;
 
     fs.forEach((f) => {
-      if (f.length === 4) {
+      if (f.vertices.length === 3) {
         let e10 = vec3.create();
-        vec3.subtract(e10, f[1], f[0]);
+        vec3.subtract(e10, f.vertices[1], f.vertices[0]);
 
         let e20 = vec3.create();
-        vec3.subtract(e20, f[2], f[0]);
-
-        let e30 = vec3.create();
-        vec3.subtract(e30, f[3], f[0]);
+        vec3.subtract(e20, f.vertices[2], f.vertices[0]);
 
         const material = boxMtl.find((m) => m.name === object.usemtl)!;
         const materialId = materials[object.usemtl]
@@ -810,7 +807,42 @@ const main = async () => {
         triangles.push({
           type: "triangle",
           triangle: {
-            vertex: f[0],
+            vertex: f.vertices[0],
+            edge1: e10,
+            edge2: e20,
+          },
+          emission: [0.0, 0.0, 0.0],
+          color: [0.75, 0.75, 0.75],
+          reflection: "diffuse",
+          materialId,
+        });
+      } else if (f.vertices.length === 4) {
+        let e10 = vec3.create();
+        vec3.subtract(e10, f.vertices[1], f.vertices[0]);
+
+        let e20 = vec3.create();
+        vec3.subtract(e20, f.vertices[2], f.vertices[0]);
+
+        let e30 = vec3.create();
+        vec3.subtract(e30, f.vertices[3], f.vertices[0]);
+
+        const material = boxMtl.find((m) => m.name === object.usemtl)!;
+        const materialId = materials[object.usemtl]
+          ? materials[object.usemtl].id
+          : Object.keys(materials).length;
+        materials[object.usemtl] = {
+          id: materialId,
+          name: object.usemtl,
+          emission: material.Ke ?? [0.0, 0.0, 0.0],
+          color: material.Ka ?? [0.0, 0.0, 0.0],
+          specular: material.Ks ?? [0.0, 0.0, 0.0],
+          specularWeight: material.Ns ?? 0.0,
+        };
+
+        triangles.push({
+          type: "triangle",
+          triangle: {
+            vertex: f.vertices[0],
             edge1: e10,
             edge2: e20,
           },
@@ -822,7 +854,7 @@ const main = async () => {
         triangles.push({
           type: "triangle",
           triangle: {
-            vertex: f[0],
+            vertex: f.vertices[0],
             edge1: e30,
             edge2: e20,
           },
