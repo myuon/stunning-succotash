@@ -12,6 +12,7 @@ uniform float screen_dist;
 uniform int spp;
 uniform int render_type;
 uniform sampler2D triangles_texture;
+uniform sampler2D material_texture;
 
 const int RenderTypeRender = 0;
 const int RenderTypeColor = 1;
@@ -87,6 +88,7 @@ struct Triangle {
     vec3 vertex;
     vec3 edge1;
     vec3 edge2;
+    int material_id;
 };
 
 float det(vec3 a, vec3 b, vec3 c) {
@@ -154,10 +156,27 @@ Triangle fetchTriangle(int index) {
     int y = (index * size) / textureSize;
 
     vec3 vertex = texture(triangles_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).xyz;
+    float material_id = texture(triangles_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).w;
     vec3 edge1 = texture(triangles_texture, vec2(float(x + 1) / float(textureSize), float(y) / float(textureSize))).xyz;
     vec3 edge2 = texture(triangles_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).xyz;
 
-    return Triangle(vertex, edge1, edge2);
+    return Triangle(vertex, edge1, edge2, int(material_id));
+}
+
+struct Material {
+    vec3 color;
+    vec3 emission;
+};
+
+Material fetchMaterial(int index) {
+    int size = 8 / 4;
+    int x = (index * size) % textureSize;
+    int y = (index * size) / textureSize;
+
+    vec3 color = texture(material_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).xyz;
+    vec3 emission = texture(material_texture, vec2(float(x + 1) / float(textureSize), float(y) / float(textureSize))).xyz;
+
+    return Material(color, emission);
 }
 
 const uint TSphere = 0u;
@@ -262,8 +281,9 @@ vec3 raytrace(Ray ray) {
             } else if (hit.type == TRectangle) {
                 return rectangles[hit.index].color;
             } else if (hit.type == TTriangle) {
-                // return triangles[hit.index].color;
-                return vec3(0.25);
+                Triangle t = fetchTriangle(hit.index);
+                Material m = fetchMaterial(t.material_id);
+                return m.color;
             } else {
                 return vec3(1, 0, 1);
             }
@@ -280,8 +300,9 @@ vec3 raytrace(Ray ray) {
         } else if (hit.type == TRectangle) {
             color += rectangles[hit.index].emission * weight;
         } else if (hit.type == TTriangle) {
-            // color += triangles[hit.index].emission * weight;
-            color += vec3(0.25);
+            Triangle t = fetchTriangle(hit.index);
+            Material m = fetchMaterial(t.material_id);
+            color += m.emission * weight;
         }
 
         float russian_roulette_threshold = 0.5;
@@ -305,8 +326,10 @@ vec3 raytrace(Ray ray) {
         } else if (hit.type == TRectangle) {
             weight *= rectangles[hit.index].color * 1.0 / russian_roulette_threshold;
         } else if (hit.type == TTriangle) {
-            // weight *= triangles[hit.index].color * 1.0 / russian_roulette_threshold;
-            weight *= vec3(0.25) * 1.0 / russian_roulette_threshold;
+            Triangle t = fetchTriangle(hit.index);
+            Material m = fetchMaterial(t.material_id);
+            
+            weight *= m.color * 1.0 / russian_roulette_threshold;
         }
         count++;
     }

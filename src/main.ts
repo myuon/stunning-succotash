@@ -31,6 +31,8 @@ const scenes = ["cornell-box", "veach-bidir"];
 const main = async () => {
   const boxObj = loadObjScene(cornellboxOriginalScene);
   const boxMtl = loadMtlScene(cornellboxOriginalSceneMtl);
+  console.log(boxObj);
+  console.log(boxMtl);
 
   // const scene = await loadMitsubaScene(veachBidirScene);
   const scene: Scene = { shapes: [] };
@@ -227,6 +229,7 @@ const main = async () => {
     texcoord: gl.getAttribLocation(program, "a_texcoord"),
     texture: gl.getUniformLocation(program, "u_texture"),
     trianglesTexture: gl.getUniformLocation(program, "triangles_texture"),
+    materialTexture: gl.getUniformLocation(program, "material_texture"),
     iterations: gl.getUniformLocation(program, "iterations"),
     resolution: gl.getUniformLocation(program, "resolution"),
     camera_position: gl.getUniformLocation(program, "camera_position"),
@@ -729,6 +732,16 @@ const main = async () => {
       .flat()
   );
 
+  const materials: Record<
+    string,
+    {
+      id: number;
+      name: string;
+      emission: vec3;
+      color: vec3;
+    }
+  > = {};
+
   const triangles: {
     type: "triangle";
     triangle: {
@@ -739,6 +752,7 @@ const main = async () => {
     emission: vec3;
     color: vec3;
     reflection: "diffuse" | "specular" | "refractive";
+    materialId: number;
   }[] = [];
   shapes.forEach((shape) => {
     if (shape.type === "mesh") {
@@ -759,6 +773,7 @@ const main = async () => {
           emission: shape.emission,
           color: shape.color,
           reflection: shape.reflection,
+          materialId: 0,
         });
       });
     }
@@ -777,6 +792,17 @@ const main = async () => {
         let e30 = vec3.create();
         vec3.subtract(e30, f[3], f[0]);
 
+        const material = boxMtl.find((m) => m.name === object.usemtl)!;
+        const materialId = materials[object.usemtl]
+          ? materials[object.usemtl].id
+          : Object.keys(materials).length;
+        materials[object.usemtl] = {
+          id: materialId,
+          name: object.usemtl,
+          emission: material.Ke ?? [0.0, 0.0, 0.0],
+          color: material.Ka ?? [0.0, 0.0, 0.0],
+        };
+
         triangles.push({
           type: "triangle",
           triangle: {
@@ -787,6 +813,7 @@ const main = async () => {
           emission: [0.0, 0.0, 0.0],
           color: [0.75, 0.75, 0.75],
           reflection: "diffuse",
+          materialId,
         });
         triangles.push({
           type: "triangle",
@@ -798,6 +825,7 @@ const main = async () => {
           emission: [0.0, 0.0, 0.0],
           color: [0.75, 0.75, 0.75],
           reflection: "diffuse",
+          materialId,
         });
       } else {
         console.error("not implemented");
@@ -806,6 +834,7 @@ const main = async () => {
     });
   });
   console.log(triangles);
+  console.log(materials);
 
   gl.uniformBlockBinding(
     program,
@@ -850,6 +879,7 @@ const main = async () => {
     triangleTextureData[i * size + 0] = triangle.triangle.vertex[0];
     triangleTextureData[i * size + 1] = triangle.triangle.vertex[1];
     triangleTextureData[i * size + 2] = triangle.triangle.vertex[2];
+    triangleTextureData[i * size + 3] = triangle.materialId;
 
     triangleTextureData[i * size + 4] = triangle.triangle.edge1[0];
     triangleTextureData[i * size + 5] = triangle.triangle.edge1[1];
@@ -878,6 +908,37 @@ const main = async () => {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.bindTexture(gl.TEXTURE_2D, null);
 
+  const materialTextureData = new Float32Array(textureSize * textureSize * 4);
+  Object.values(materials).forEach((material) => {
+    const size = 8;
+
+    materialTextureData[material.id * size + 0] = material.color[0];
+    materialTextureData[material.id * size + 1] = material.color[1];
+    materialTextureData[material.id * size + 2] = material.color[2];
+
+    materialTextureData[material.id * size + 4] = material.emission[0];
+    materialTextureData[material.id * size + 5] = material.emission[1];
+    materialTextureData[material.id * size + 6] = material.emission[2];
+  });
+
+  gl.activeTexture(gl.TEXTURE2);
+  const materialTexture = gl.createTexture()!;
+  gl.bindTexture(gl.TEXTURE_2D, materialTexture);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA32F,
+    textureSize,
+    textureSize,
+    0,
+    gl.RGBA,
+    gl.FLOAT,
+    materialTextureData
+  );
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+
   const loop = () => {
     stats.begin();
 
@@ -894,6 +955,10 @@ const main = async () => {
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, triangleTexture);
       gl.uniform1i(programLocations.trianglesTexture, 1);
+
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, materialTexture);
+      gl.uniform1i(programLocations.materialTexture, 2);
 
       gl.uniform1i(programLocations.iterations, iterations);
       gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);
