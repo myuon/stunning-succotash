@@ -6,8 +6,8 @@ import GUI from "lil-gui";
 import Stats from "stats.js";
 import cornellScene from "./scenes/cornell-box/scene.xml?raw";
 import veachBidirScene from "./scenes/veach-bidir/scene.xml?raw";
-import cornellboxOriginalScene from "./scenes/cornell-box-mtl/CornellBox-Original.obj?raw";
-import cornellboxOriginalSceneMtl from "./scenes/cornell-box-mtl/CornellBox-Original.mtl?raw";
+import cornellboxOriginalScene from "./scenes/cornell-box-mtl/CornellBox-Mirror.obj?raw";
+import cornellboxOriginalSceneMtl from "./scenes/cornell-box-mtl/CornellBox-Mirror.mtl?raw";
 import {
   Scene,
   Triangle,
@@ -739,6 +739,8 @@ const main = async () => {
       name: string;
       emission: vec3;
       color: vec3;
+      specular: vec3;
+      specularWeight: number;
     }
   > = {};
 
@@ -801,6 +803,8 @@ const main = async () => {
           name: object.usemtl,
           emission: material.Ke ?? [0.0, 0.0, 0.0],
           color: material.Ka ?? [0.0, 0.0, 0.0],
+          specular: material.Ks ?? [0.0, 0.0, 0.0],
+          specularWeight: material.Ns ?? 0.0,
         };
 
         triangles.push({
@@ -910,7 +914,7 @@ const main = async () => {
 
   const materialTextureData = new Float32Array(textureSize * textureSize * 4);
   Object.values(materials).forEach((material) => {
-    const size = 8;
+    const size = 12;
 
     materialTextureData[material.id * size + 0] = material.color[0];
     materialTextureData[material.id * size + 1] = material.color[1];
@@ -919,6 +923,11 @@ const main = async () => {
     materialTextureData[material.id * size + 4] = material.emission[0];
     materialTextureData[material.id * size + 5] = material.emission[1];
     materialTextureData[material.id * size + 6] = material.emission[2];
+
+    materialTextureData[material.id * size + 8] = material.specular[0];
+    materialTextureData[material.id * size + 9] = material.specular[1];
+    materialTextureData[material.id * size + 10] = material.specular[2];
+    materialTextureData[material.id * size + 11] = material.specularWeight;
   });
 
   gl.activeTexture(gl.TEXTURE2);

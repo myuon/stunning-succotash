@@ -166,17 +166,21 @@ Triangle fetchTriangle(int index) {
 struct Material {
     vec3 color;
     vec3 emission;
+    vec3 specular;
+    float specular_weight;
 };
 
 Material fetchMaterial(int index) {
-    int size = 8 / 4;
+    int size = 12 / 4;
     int x = (index * size) % textureSize;
     int y = (index * size) / textureSize;
 
     vec3 color = texture(material_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).xyz;
     vec3 emission = texture(material_texture, vec2(float(x + 1) / float(textureSize), float(y) / float(textureSize))).xyz;
+    vec3 specular = texture(material_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).xyz;
+    float specular_weight = texture(material_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).w;
 
-    return Material(color, emission);
+    return Material(color, emission, specular, specular_weight);
 }
 
 const uint TSphere = 0u;
