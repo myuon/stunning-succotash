@@ -268,6 +268,22 @@ HitInScene intersect(Ray ray){
     return hit;
 }
 
+void next_ray(HitInScene hit, float seed, inout Ray ray, out float weight_delta) {
+    vec3 orienting_normal = dot(hit.r.normal, ray.direction) < 0.0 ? hit.r.normal : -hit.r.normal;
+    weight_delta = 1.0;
+
+    if (hit.type == TTriangle) {
+        Triangle t = fetchTriangle(hit.index);
+        Material m = fetchMaterial(t.material_id);
+
+        ray.direction = randOnHemisphere(orienting_normal, seed);
+        ray.origin = hit.r.point + ray.direction * kEPS;
+    } else {
+        ray.direction = randOnHemisphere(orienting_normal, seed);
+        ray.origin = hit.r.point + ray.direction * kEPS;
+    }
+}
+
 vec3 raytrace(Ray ray) {
     vec3 color = vec3(0.0);
     vec3 weight = vec3(1.0);
@@ -279,18 +295,21 @@ vec3 raytrace(Ray ray) {
             return color;
         }
 
+        vec3 object_color = vec3(1.0);
+        if (hit.type == TSphere) {
+            object_color = spheres[hit.index].color;
+        } else if (hit.type == TRectangle) {
+            object_color = rectangles[hit.index].color;
+        } else if (hit.type == TTriangle) {
+            Triangle t = fetchTriangle(hit.index);
+            Material m = fetchMaterial(t.material_id);
+            object_color = m.color;
+        } else {
+            object_color = vec3(1, 0, 1);
+        }
+
         if (render_type == RenderTypeColor && hit.index != -1) {
-            if (hit.type == TSphere) {
-                return spheres[hit.index].color;
-            } else if (hit.type == TRectangle) {
-                return rectangles[hit.index].color;
-            } else if (hit.type == TTriangle) {
-                Triangle t = fetchTriangle(hit.index);
-                Material m = fetchMaterial(t.material_id);
-                return m.color;
-            } else {
-                return vec3(1, 0, 1);
-            }
+            return object_color;
         }
 
         vec3 orienting_normal = dot(hit.r.normal, ray.direction) < 0.0 ? hit.r.normal : -hit.r.normal;
@@ -323,18 +342,9 @@ vec3 raytrace(Ray ray) {
             return color;
         }
 
-        ray.direction = randOnHemisphere(orienting_normal, seed);
-        ray.origin = hit.r.point + ray.direction * kEPS;
-        if (hit.type == TSphere) {
-            weight *= spheres[hit.index].color * 1.0 / russian_roulette_threshold;
-        } else if (hit.type == TRectangle) {
-            weight *= rectangles[hit.index].color * 1.0 / russian_roulette_threshold;
-        } else if (hit.type == TTriangle) {
-            Triangle t = fetchTriangle(hit.index);
-            Material m = fetchMaterial(t.material_id);
-            
-            weight *= m.color * 1.0 / russian_roulette_threshold;
-        }
+        float weight_delta = 1.0;
+        next_ray(hit, seed, ray, weight_delta);
+        weight *= object_color * weight_delta / russian_roulette_threshold;
         count++;
     }
 }
