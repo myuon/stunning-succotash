@@ -89,6 +89,7 @@ struct Triangle {
     vec3 edge1;
     vec3 edge2;
     int material_id;
+    bool smooth_normal;
 };
 
 float det(vec3 a, vec3 b, vec3 c) {
@@ -159,8 +160,9 @@ Triangle fetchTriangle(int index) {
     float material_id = texture(triangles_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).w;
     vec3 edge1 = texture(triangles_texture, vec2(float(x + 1) / float(textureSize), float(y) / float(textureSize))).xyz;
     vec3 edge2 = texture(triangles_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).xyz;
+    float smooth_normal = texture(triangles_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).w;
 
-    return Triangle(vertex, edge1, edge2, int(material_id));
+    return Triangle(vertex, edge1, edge2, int(material_id), smooth_normal > 0.0);
 }
 
 struct Material {

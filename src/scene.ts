@@ -486,6 +486,7 @@ export interface SceneObj {
       normals: vec3[];
     }[];
     usemtl: string;
+    smooth?: boolean;
   }[];
 }
 
@@ -661,7 +662,14 @@ export const loadObjScene = (raw: string) => {
       });
       continue;
     } else if (token.type === "keyword" && token.value === "s") {
-      position += 2;
+      position++;
+      const value = tokens[position];
+      if (value.type !== "number") {
+        throw new Error(`Unexpected token: ${JSON.stringify(value)}`);
+      }
+      scene.objects[scene.objects!.length - 1].smooth = value.value === 1;
+
+      position++;
       continue;
     } else {
       throw new Error(`Unexpected token: ${JSON.stringify(token)}`);

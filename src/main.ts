@@ -717,11 +717,21 @@ const main = async () => {
           0.0, // padding
           ...rectangle.mesh[0].edge2,
           0.0, // padding
+          0.0, // padding
+          0.0, // padding
+          0.0, // padding
+          0.0, // padding
+          0.0, // padding
           ...rectangle.mesh[1].vertex,
           0.0, // padding
           ...rectangle.mesh[1].edge1,
           0.0, // padding
           ...rectangle.mesh[1].edge2,
+          0.0, // padding
+          0.0, // padding
+          0.0, // padding
+          0.0, // padding
+          0.0, // padding
           0.0, // padding
           ...rectangle.emission,
           0.0, // padding
@@ -755,6 +765,7 @@ const main = async () => {
     color: vec3;
     reflection: "diffuse" | "specular" | "refractive";
     materialId: number;
+    smooth: boolean;
   }[] = [];
   shapes.forEach((shape) => {
     if (shape.type === "mesh") {
@@ -776,6 +787,7 @@ const main = async () => {
           color: shape.color,
           reflection: shape.reflection,
           materialId: 0,
+          smooth: false,
         });
       });
     }
@@ -815,6 +827,7 @@ const main = async () => {
           color: [0.75, 0.75, 0.75],
           reflection: "diffuse",
           materialId,
+          smooth: object.smooth ?? false,
         });
       } else if (f.vertices.length === 4) {
         let e10 = vec3.create();
@@ -850,6 +863,7 @@ const main = async () => {
           color: [0.75, 0.75, 0.75],
           reflection: "diffuse",
           materialId,
+          smooth: object.smooth ?? false,
         });
         triangles.push({
           type: "triangle",
@@ -862,6 +876,7 @@ const main = async () => {
           color: [0.75, 0.75, 0.75],
           reflection: "diffuse",
           materialId,
+          smooth: object.smooth ?? false,
         });
       } else {
         console.error("not implemented");
@@ -924,6 +939,7 @@ const main = async () => {
     triangleTextureData[i * size + 8] = triangle.triangle.edge2[0];
     triangleTextureData[i * size + 9] = triangle.triangle.edge2[1];
     triangleTextureData[i * size + 10] = triangle.triangle.edge2[2];
+    triangleTextureData[i * size + 11] = triangle.smooth ? 1.0 : 0.0;
   });
 
   gl.activeTexture(gl.TEXTURE1);
