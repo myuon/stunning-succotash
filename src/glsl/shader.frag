@@ -276,8 +276,24 @@ void next_ray(HitInScene hit, float seed, inout Ray ray, out float weight_delta)
         Triangle t = fetchTriangle(hit.index);
         Material m = fetchMaterial(t.material_id);
 
-        ray.direction = randOnHemisphere(orienting_normal, seed);
-        ray.origin = hit.r.point + ray.direction * kEPS;
+        if (m.specular_weight > 0.0) {
+            float specular_prob = m.specular_weight / (m.specular_weight + 1.0);
+            float r = rand(vec2(seed, m.specular_weight) + hit.r.point.xy);
+            if (r < specular_prob) {
+                ray.direction = reflect(ray.direction, orienting_normal);
+                ray.origin = hit.r.point + ray.direction * kEPS;
+
+                weight_delta = 1.0 / specular_prob;
+            } else {
+                ray.direction = randOnHemisphere(orienting_normal, seed);
+                ray.origin = hit.r.point + ray.direction * kEPS;
+
+                weight_delta = 1.0 / (1.0 - specular_prob);
+            }
+        } else {
+            ray.direction = randOnHemisphere(orienting_normal, seed);
+            ray.origin = hit.r.point + ray.direction * kEPS;
+        }
     } else {
         ray.direction = randOnHemisphere(orienting_normal, seed);
         ray.origin = hit.r.point + ray.direction * kEPS;
