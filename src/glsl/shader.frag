@@ -72,18 +72,6 @@ struct Ray {
     vec3 direction;
 };
 
-const uint Diffuse = 0u;
-const uint Specular = 1u;
-const uint Refractive = 2u;
-
-struct Sphere {
-    vec3 center;
-    float radius;
-    vec3 emission;
-    vec3 color;
-    uint reflection_type;
-};
-
 struct Triangle {
     vec3 vertex;
     vec3 edge1;
@@ -114,39 +102,6 @@ HitRecord Triangle_intersect(Triangle self, Ray ray) {
 
     return HitRecord(true, normalize(cross(self.edge1, self.edge2)), ray.origin + ray.direction * t);
 }
-
-struct Rectangle {
-    Triangle[2] mesh;
-    vec3 emission;
-    vec3 color;
-    uint reflection_type;
-};
-
-HitRecord Rectangle_intersect(Rectangle self, Ray ray) {
-    for (int i = 0; i < self.mesh.length(); i++) {
-        HitRecord hit = Triangle_intersect(self.mesh[i], ray);
-        if (hit.hit) {
-            return hit;
-        }
-    }
-
-    return HitRecord(false, vec3(0.0), vec3(0.0));
-}
-
-// SCENE
-const int MAX_N_SPHERES = 100;
-uniform int n_spheres;
-
-layout(std140) uniform Spheres {
-    Sphere spheres[MAX_N_SPHERES];
-};
-
-const int MAX_N_RECTANGLES = 100;
-uniform int n_rectangles;
-
-layout(std140) uniform Rectangles {
-    Rectangle rectangles[MAX_N_RECTANGLES];
-};
 
 uniform int n_triangles;
 
@@ -185,9 +140,7 @@ Material fetchMaterial(int index) {
     return Material(color, emission, specular, specular_weight);
 }
 
-const uint TSphere = 0u;
-const uint TRectangle = 1u;
-const uint TTriangle = 2u;
+const uint TTriangle = 0u;
 
 struct HitInScene {
     int index;
@@ -197,59 +150,7 @@ struct HitInScene {
 
 HitInScene intersect(Ray ray){
     float dist = 1000000.0;
-    HitInScene hit = HitInScene(-1, TSphere, HitRecord(false, vec3(0.0), vec3(0.0)));
-    for(int i = 0; i < n_spheres; i++){
-        Sphere obj = spheres[i];
-        float b = dot(ray.direction, obj.center - ray.origin);
-        float c = dot(obj.center - ray.origin, obj.center - ray.origin) - obj.radius * obj.radius;
-        float d = b * b - c;
-        if (d < 0.0) {
-            continue;
-        }
-
-        float t1 = b - sqrt(d);
-        float t2 = b + sqrt(d);
-        if (t1 < kEPS && t2 < kEPS) {
-            continue;
-        }
-
-        if(t1 > kEPS && t1 < dist){
-            dist = t1;
-            hit.index = i;
-            hit.type = TSphere;
-            hit.r.hit = true;
-            hit.r.point = ray.origin + ray.direction * t1;
-            hit.r.normal = normalize(hit.r.point - obj.center);
-            continue;
-        }
-
-        if(t2 > kEPS && t2 < dist){
-            dist = t2;
-            hit.index = i;
-            hit.type = TSphere;
-            hit.r.hit = true;
-            hit.r.point = ray.origin + ray.direction * t2;
-            hit.r.normal = normalize(hit.r.point - obj.center);
-
-            continue;
-        }
-    }
-    for(int i = 0; i < n_rectangles; i++){
-        Rectangle obj = rectangles[i];
-        HitRecord r = Rectangle_intersect(obj, ray);
-
-        if (r.hit) {
-            float t = length(r.point - ray.origin);
-            if (t < dist) {
-                dist = t;
-                hit.index = i;
-                hit.type = TRectangle;
-                hit.r = r;
-
-                continue;
-            }
-        }
-    }
+    HitInScene hit = HitInScene(-1, TTriangle, HitRecord(false, vec3(0.0), vec3(0.0)));
     for(int i = 0; i < n_triangles; i++){
         Triangle obj = fetchTriangle(i);
         HitRecord r = Triangle_intersect(obj, ray);
@@ -314,11 +215,7 @@ vec3 raytrace(Ray ray) {
         }
 
         vec3 object_color = vec3(1.0);
-        if (hit.type == TSphere) {
-            object_color = spheres[hit.index].color;
-        } else if (hit.type == TRectangle) {
-            object_color = rectangles[hit.index].color;
-        } else if (hit.type == TTriangle) {
+        if (hit.type == TTriangle) {
             Triangle t = fetchTriangle(hit.index);
             Material m = fetchMaterial(t.material_id);
             object_color = m.color;
@@ -336,11 +233,7 @@ vec3 raytrace(Ray ray) {
             return orienting_normal + vec3(0.25);
         }
 
-        if (hit.type == TSphere) {
-            color += spheres[hit.index].emission * weight;
-        } else if (hit.type == TRectangle) {
-            color += rectangles[hit.index].emission * weight;
-        } else if (hit.type == TTriangle) {
+        if (hit.type == TTriangle) {
             Triangle t = fetchTriangle(hit.index);
             Material m = fetchMaterial(t.material_id);
             color += m.emission * weight;
