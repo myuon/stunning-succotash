@@ -542,9 +542,6 @@ const main = async () => {
       normal2?: vec3;
       normal3?: vec3;
     };
-    emission: vec3;
-    color: vec3;
-    reflection: "diffuse" | "specular" | "refractive";
     materialId: number;
     smooth: boolean;
   }[] = [];
@@ -564,9 +561,6 @@ const main = async () => {
             edge1: e1,
             edge2: e2,
           },
-          emission: shape.emission,
-          color: shape.color,
-          reflection: shape.reflection,
           materialId: 0,
           smooth: false,
         });
@@ -609,9 +603,6 @@ const main = async () => {
             normal2: f.normals[1],
             normal3: f.normals[2],
           },
-          emission: [0.0, 0.0, 0.0],
-          color: [0.75, 0.75, 0.75],
-          reflection: "diffuse",
           materialId,
           smooth: object.smooth ?? false,
         });
@@ -652,9 +643,6 @@ const main = async () => {
             edge1: e10,
             edge2: e20,
           },
-          emission: [0.0, 0.0, 0.0],
-          color: [0.75, 0.75, 0.75],
-          reflection: "diffuse",
           materialId,
           smooth: object.smooth ?? false,
         });
@@ -665,9 +653,6 @@ const main = async () => {
             edge1: e30,
             edge2: e20,
           },
-          emission: [0.0, 0.0, 0.0],
-          color: [0.75, 0.75, 0.75],
-          reflection: "diffuse",
           materialId,
           smooth: object.smooth ?? false,
         });
