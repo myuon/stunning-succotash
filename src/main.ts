@@ -528,6 +528,7 @@ const main = async () => {
       specular: vec3;
       specularWeight: number;
       aabb?: [vec3, vec3];
+      triangles?: [number, number];
     }
   > = {};
 
@@ -575,6 +576,7 @@ const main = async () => {
   boxObj.objects.forEach((object) => {
     const fs = object.faces;
     const aabb = [vec3.create(), vec3.create()] as [vec3, vec3];
+    const trianglesIndexStart = triangles.length;
 
     fs.forEach((f) => {
       if (f.vertices.length === 3) {
@@ -675,7 +677,13 @@ const main = async () => {
       }
     });
 
+    const trianglesIndexEnd = triangles.length;
+
     materials[object.usemtl].aabb = aabb;
+    materials[object.usemtl].triangles = [
+      trianglesIndexStart,
+      trianglesIndexEnd,
+    ];
   });
   console.log(triangles);
   console.log(materials);
@@ -750,10 +758,14 @@ const main = async () => {
     materialTextureData[material.id * size + 12] = material.aabb![0][0];
     materialTextureData[material.id * size + 13] = material.aabb![0][1];
     materialTextureData[material.id * size + 14] = material.aabb![0][2];
+    materialTextureData[material.id * size + 15] =
+      material.triangles?.[0] ?? -1;
 
     materialTextureData[material.id * size + 16] = material.aabb![1][0];
     materialTextureData[material.id * size + 17] = material.aabb![1][1];
     materialTextureData[material.id * size + 18] = material.aabb![1][2];
+    materialTextureData[material.id * size + 19] =
+      material.triangles?.[1] ?? -1;
   });
 
   gl.activeTexture(gl.TEXTURE2);

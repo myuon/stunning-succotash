@@ -131,11 +131,67 @@ Triangle fetchTriangle(int index) {
     return Triangle(vertex, edge1, edge2, normal0, normal1, normal2, int(material_id), smooth_normal > 0.0);
 }
 
+struct AABB {
+    vec3 minv;
+    vec3 maxv;
+};
+
+bool AABB_intersect(AABB self, Ray ray) {
+    float tmin = (self.minv.x - ray.origin.x) / ray.direction.x;
+    float tmax = (self.maxv.x - ray.origin.x) / ray.direction.x;
+
+    if (tmin > tmax) {
+        float tmp = tmin;
+        tmin = tmax;
+        tmax = tmp;
+    }
+
+    float tymin = (self.minv.y - ray.origin.y) / ray.direction.y;
+    float tymax = (self.maxv.y - ray.origin.y) / ray.direction.y;
+
+    if (tymin > tymax) {
+        float tmp = tymin;
+        tymin = tymax;
+        tymax = tmp;
+    }
+
+    if ((tmin > tymax) || (tymin > tmax)) {
+        return false;
+    }
+
+    if (tymin > tmin) {
+        tmin = tymin;
+    }
+
+    if (tymax < tmax) {
+        tmax = tymax;
+    }
+
+    float tzmin = (self.minv.z - ray.origin.z) / ray.direction.z;
+    float tzmax = (self.maxv.z - ray.origin.z) / ray.direction.z;
+
+    if (tzmin > tzmax) {
+        float tmp = tzmin;
+        tzmin = tzmax;
+        tzmax = tmp;
+    }
+
+    if ((tmin > tzmax) || (tzmin > tmax)) {
+        return false;
+    }
+
+    return true;
+}
+
 struct Material {
+    int id;
     vec3 color;
     vec3 emission;
     vec3 specular;
     float specular_weight;
+    AABB aabb;
+    int t_index_min;
+    int t_index_max;
 };
 
 Material fetchMaterial(int index) {
@@ -147,8 +203,12 @@ Material fetchMaterial(int index) {
     vec3 emission = texture(material_texture, vec2(float(x + 1) / float(textureSize), float(y) / float(textureSize))).xyz;
     vec3 specular = texture(material_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).xyz;
     float specular_weight = texture(material_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).w;
+    vec3 minv = texture(material_texture, vec2(float(x + 3) / float(textureSize), float(y) / float(textureSize))).xyz;
+    int t_index_min = int(texture(material_texture, vec2(float(x + 3) / float(textureSize), float(y) / float(textureSize))).w);
+    vec3 maxv = texture(material_texture, vec2(float(x + 4) / float(textureSize), float(y) / float(textureSize))).xyz;
+    int t_index_max = int(texture(material_texture, vec2(float(x + 4) / float(textureSize), float(y) / float(textureSize))).w);
 
-    return Material(color, emission, specular, specular_weight);
+    return Material(index, color, emission, specular, specular_weight, AABB(minv, maxv), t_index_min, t_index_max);
 }
 
 const uint TTriangle = 0u;
@@ -162,19 +222,29 @@ struct HitInScene {
 HitInScene intersect(Ray ray){
     float dist = 1000000.0;
     HitInScene hit = HitInScene(-1, TTriangle, HitRecord(false, vec3(0.0), vec3(0.0)));
-    for(int i = 0; i < n_triangles; i++){
-        Triangle obj = fetchTriangle(i);
-        HitRecord r = Triangle_intersect(obj, ray);
+    for(int i = 0; i < n_materials; i++){
+        Material m = fetchMaterial(i);
+        if (!AABB_intersect(m.aabb, ray)) {
+            continue;
+        }
 
-        if (r.hit) {
-            float t = length(r.point - ray.origin);
-            if (t < dist) {
-                dist = t;
-                hit.index = i;
-                hit.type = TTriangle;
-                hit.r = r;
-
+        for(int i = m.t_index_min; i < m.t_index_max; i++){
+            Triangle obj = fetchTriangle(i);
+            if (obj.material_id != m.id) {
                 continue;
+            }
+            HitRecord r = Triangle_intersect(obj, ray);
+
+            if (r.hit) {
+                float t = length(r.point - ray.origin);
+                if (t < dist) {
+                    dist = t;
+                    hit.index = i;
+                    hit.type = TTriangle;
+                    hit.r = r;
+
+                    continue;
+                }
             }
         }
     }
