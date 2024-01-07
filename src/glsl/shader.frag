@@ -181,9 +181,18 @@ HitInScene intersect(Ray ray){
     return hit;
 }
 
-void next_ray(HitInScene hit, float seed, inout Ray ray, out float weight_delta) {
+void next_ray(HitInScene hit, float seed, inout Ray ray, out vec3 weight_delta) {
+    vec3 object_color = vec3(1.0);
+    if (hit.type == TTriangle) {
+        Triangle t = fetchTriangle(hit.index);
+        Material m = fetchMaterial(t.material_id);
+        object_color = m.color;
+    } else {
+        object_color = vec3(1, 0, 1);
+    }
+
     vec3 orienting_normal = dot(hit.r.normal, ray.direction) < 0.0 ? hit.r.normal : -hit.r.normal;
-    weight_delta = 1.0;
+    weight_delta = object_color;
     ray.origin = hit.r.point + orienting_normal * kEPS;
 
     if (hit.type == TTriangle) {
@@ -196,11 +205,11 @@ void next_ray(HitInScene hit, float seed, inout Ray ray, out float weight_delta)
             if (r < specular_prob) {
                 ray.direction = reflect(ray.direction, orienting_normal);
 
-                weight_delta = 1.0 / specular_prob;
+                weight_delta = m.specular / specular_prob;
             } else {
                 ray.direction = randOnHemisphere(orienting_normal, seed);
 
-                weight_delta = 1.0 / (1.0 - specular_prob);
+                weight_delta = object_color / (1.0 - specular_prob);
             }
         } else {
             ray.direction = randOnHemisphere(orienting_normal, seed);
@@ -260,9 +269,9 @@ vec3 raytrace(Ray ray) {
             return color;
         }
 
-        float weight_delta = 1.0;
+        vec3 weight_delta = vec3(1.0);
         next_ray(hit, seed, ray, weight_delta);
-        weight *= object_color * weight_delta / russian_roulette_threshold;
+        weight *= weight_delta / russian_roulette_threshold;
         count++;
     }
 }

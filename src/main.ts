@@ -6,8 +6,8 @@ import GUI from "lil-gui";
 import Stats from "stats.js";
 import cornellScene from "./scenes/cornell-box/scene.xml?raw";
 import veachBidirScene from "./scenes/veach-bidir/scene.xml?raw";
-import cornellboxOriginalScene from "./scenes/cornell-box-mtl/CornellBox-Glossy.obj?raw";
-import cornellboxOriginalSceneMtl from "./scenes/cornell-box-mtl/CornellBox-Glossy.mtl?raw";
+import cornellboxOriginalScene from "./scenes/cornell-box-mtl/CornellBox-Mirror.obj?raw";
+import cornellboxOriginalSceneMtl from "./scenes/cornell-box-mtl/CornellBox-Mirror.mtl?raw";
 import {
   Scene,
   Triangle,
