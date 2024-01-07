@@ -22,7 +22,7 @@ in vec2 v_texcoord;
 out vec4 outColor;
 
 const float PI = 3.14159265;
-const float kEPS = 1e-2;
+const float kEPS = 1e-6;
 
 highp float rand(vec2 co){
     highp float a = 12.9898;
