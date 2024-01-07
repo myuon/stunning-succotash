@@ -606,6 +606,10 @@ export const loadObjScene = (raw: string) => {
         }
         position++;
 
+        if (position >= tokens.length) {
+          return [v.value];
+        }
+
         if (tokens[position].type === "slash") {
           position++;
           const vt = tokens[position];
