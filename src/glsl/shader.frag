@@ -111,6 +111,7 @@ HitRecord Triangle_intersect(Triangle self, Ray ray) {
 }
 
 uniform int n_triangles;
+uniform int n_materials;
 
 const int textureSize = 1024;
 Triangle fetchTriangle(int index) {
@@ -138,7 +139,7 @@ struct Material {
 };
 
 Material fetchMaterial(int index) {
-    int size = 12 / 4;
+    int size = 20 / 4;
     int x = (index * size) % textureSize;
     int y = (index * size) / textureSize;
 

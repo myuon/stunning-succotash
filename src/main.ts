@@ -6,8 +6,8 @@ import GUI from "lil-gui";
 import Stats from "stats.js";
 import cornellScene from "./scenes/cornell-box/scene.xml?raw";
 import veachBidirScene from "./scenes/veach-bidir/scene.xml?raw";
-import cornellboxOriginalScene from "./scenes/cornell-box-mtl/CornellBox-Mirror.obj?raw";
-import cornellboxOriginalSceneMtl from "./scenes/cornell-box-mtl/CornellBox-Mirror.mtl?raw";
+import cornellboxOriginalScene from "./scenes/cornell-box-mtl/CornellBox-Glossy.obj?raw";
+import cornellboxOriginalSceneMtl from "./scenes/cornell-box-mtl/CornellBox-Glossy.mtl?raw";
 import {
   Scene,
   Triangle,
@@ -231,9 +231,8 @@ const main = async () => {
     camera_up: gl.getUniformLocation(program, "camera_up"),
     screen_dist: gl.getUniformLocation(program, "screen_dist"),
     spp: gl.getUniformLocation(program, "spp"),
-    n_spheres: gl.getUniformLocation(program, "n_spheres"),
-    n_rectangles: gl.getUniformLocation(program, "n_rectangles"),
     n_triangles: gl.getUniformLocation(program, "n_triangles"),
+    n_materials: gl.getUniformLocation(program, "n_materials"),
     render_type: gl.getUniformLocation(program, "render_type"),
   };
 
@@ -528,6 +527,7 @@ const main = async () => {
       color: vec3;
       specular: vec3;
       specularWeight: number;
+      aabb?: [vec3, vec3];
     }
   > = {};
 
@@ -574,6 +574,7 @@ const main = async () => {
   });
   boxObj.objects.forEach((object) => {
     const fs = object.faces;
+    const aabb = [vec3.create(), vec3.create()] as [vec3, vec3];
 
     fs.forEach((f) => {
       if (f.vertices.length === 3) {
@@ -612,6 +613,13 @@ const main = async () => {
           materialId,
           smooth: object.smooth ?? false,
         });
+
+        vec3.min(aabb[0], aabb[0], f.vertices[0]);
+        vec3.max(aabb[1], aabb[1], f.vertices[0]);
+        vec3.min(aabb[0], aabb[0], f.vertices[1]);
+        vec3.max(aabb[1], aabb[1], f.vertices[1]);
+        vec3.min(aabb[0], aabb[0], f.vertices[2]);
+        vec3.max(aabb[1], aabb[1], f.vertices[2]);
       } else if (f.vertices.length === 4) {
         let e10 = vec3.create();
         vec3.subtract(e10, f.vertices[1], f.vertices[0]);
@@ -666,6 +674,8 @@ const main = async () => {
         throw new Error("not implemented");
       }
     });
+
+    materials[object.usemtl].aabb = aabb;
   });
   console.log(triangles);
   console.log(materials);
@@ -722,7 +732,7 @@ const main = async () => {
 
   const materialTextureData = new Float32Array(textureSize * textureSize * 4);
   Object.values(materials).forEach((material) => {
-    const size = 12;
+    const size = 20;
 
     materialTextureData[material.id * size + 0] = material.color[0];
     materialTextureData[material.id * size + 1] = material.color[1];
@@ -736,6 +746,14 @@ const main = async () => {
     materialTextureData[material.id * size + 9] = material.specular[1];
     materialTextureData[material.id * size + 10] = material.specular[2];
     materialTextureData[material.id * size + 11] = material.specularWeight;
+
+    materialTextureData[material.id * size + 12] = material.aabb![0][0];
+    materialTextureData[material.id * size + 13] = material.aabb![0][1];
+    materialTextureData[material.id * size + 14] = material.aabb![0][2];
+
+    materialTextureData[material.id * size + 16] = material.aabb![1][0];
+    materialTextureData[material.id * size + 17] = material.aabb![1][1];
+    materialTextureData[material.id * size + 18] = material.aabb![1][2];
   });
 
   gl.activeTexture(gl.TEXTURE2);
@@ -784,9 +802,8 @@ const main = async () => {
       gl.uniform3fv(programLocations.camera_up, camera.up);
       gl.uniform1f(programLocations.screen_dist, camera.screen_dist);
       gl.uniform1i(programLocations.spp, value.spp);
-      gl.uniform1i(programLocations.n_spheres, 0);
-      gl.uniform1i(programLocations.n_rectangles, 0);
       gl.uniform1i(programLocations.n_triangles, triangles.length);
+      gl.uniform1i(programLocations.n_materials, Object.keys(materials).length);
       gl.uniform1i(
         programLocations.render_type,
         renderTypes.indexOf(value.renderType)
