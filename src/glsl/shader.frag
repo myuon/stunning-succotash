@@ -22,7 +22,6 @@ in vec2 v_texcoord;
 out vec4 outColor;
 
 const float PI = 3.14159265;
-const float angle = 60.0;
 const float kEPS = 1e-2;
 
 highp float rand(vec2 co){
@@ -105,10 +104,10 @@ HitRecord Triangle_intersect(Triangle self, Ray ray) {
 
     if (self.smooth_normal) {
         vec3 normal = normalize(self.normal0 * (1.0 - u - v) + self.normal1 * u + self.normal2 * v);
-        return HitRecord(true, normal, ray.origin + ray.direction * t);
+        return HitRecord(true, normal, self.vertex + self.edge1 * u + self.edge2 * v);
     }
 
-    return HitRecord(true, normalize(cross(self.edge1, self.edge2)), ray.origin + ray.direction * t);
+    return HitRecord(true, normalize(cross(self.edge1, self.edge2)), self.vertex + self.edge1 * u + self.edge2 * v);
 }
 
 uniform int n_triangles;
