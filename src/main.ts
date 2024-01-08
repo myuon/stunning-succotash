@@ -552,6 +552,8 @@ const loadScene = async (
 
         const materialId = Object.keys(materials).length;
 
+        let trianglesIndexStart = triangles.length;
+
         shape.model?.forEach((triangle) => {
           let e1 = vec3.create();
           vec3.subtract(e1, triangle.vertices[1], triangle.vertices[0]);
@@ -585,146 +587,14 @@ const loadScene = async (
         });
 
         if (renderBoundingBoxes) {
-          const [a, b] = aabb;
-
-          const dx = vec3.fromValues(b[0] - a[0], 0, 0);
-          const dy = vec3.fromValues(0, b[1] - a[1], 0);
-          const dz = vec3.fromValues(0, 0, b[2] - a[2]);
-          const dxdy = vec3.fromValues(b[0] - a[0], b[1] - a[1], 0);
-          const dxdz = vec3.fromValues(b[0] - a[0], 0, b[2] - a[2]);
-          const dydz = vec3.fromValues(0, b[1] - a[1], b[2] - a[2]);
-
-          triangles.push({
-            id: triangles.length,
-            type: "triangle",
-            triangle: {
-              vertex: a,
-              edge1: dx,
-              edge2: dxdy,
-            },
-            materialId,
-            smooth: false,
-          });
-          triangles.push({
-            id: triangles.length,
-            type: "triangle",
-            triangle: {
-              vertex: a,
-              edge1: dxdy,
-              edge2: dy,
-            },
-            materialId,
-            smooth: false,
-          });
-          triangles.push({
-            id: triangles.length,
-            type: "triangle",
-            triangle: {
-              vertex: a,
-              edge1: dy,
-              edge2: dydz,
-            },
-            materialId,
-            smooth: false,
-          });
-          triangles.push({
-            id: triangles.length,
-            type: "triangle",
-            triangle: {
-              vertex: a,
-              edge1: dydz,
-              edge2: dz,
-            },
-            materialId,
-            smooth: false,
-          });
-          triangles.push({
-            id: triangles.length,
-            type: "triangle",
-            triangle: {
-              vertex: a,
-              edge1: dz,
-              edge2: dxdz,
-            },
-            materialId,
-            smooth: false,
-          });
-          triangles.push({
-            id: triangles.length,
-            type: "triangle",
-            triangle: {
-              vertex: a,
-              edge1: dxdz,
-              edge2: dx,
-            },
-            materialId,
-            smooth: false,
-          });
-          triangles.push({
-            id: triangles.length,
-            type: "triangle",
-            triangle: {
-              vertex: [a[0], a[1], b[2]],
-              edge1: dx,
-              edge2: dxdy,
-            },
-            materialId,
-            smooth: false,
-          });
-          triangles.push({
-            id: triangles.length,
-            type: "triangle",
-            triangle: {
-              vertex: [a[0], a[1], b[2]],
-              edge1: dxdy,
-              edge2: dy,
-            },
-            materialId,
-            smooth: false,
-          });
-          triangles.push({
-            id: triangles.length,
-            type: "triangle",
-            triangle: {
-              vertex: [a[0], b[1], a[2]],
-              edge1: dx,
-              edge2: dxdz,
-            },
-            materialId,
-            smooth: false,
-          });
-          triangles.push({
-            id: triangles.length,
-            type: "triangle",
-            triangle: {
-              vertex: [a[0], b[1], a[2]],
-              edge1: dxdz,
-              edge2: dz,
-            },
-            materialId,
-            smooth: false,
-          });
-          triangles.push({
-            id: triangles.length,
-            type: "triangle",
-            triangle: {
-              vertex: [b[0], a[1], a[2]],
-              edge1: dy,
-              edge2: dydz,
-            },
-            materialId,
-            smooth: false,
-          });
-          triangles.push({
-            id: triangles.length,
-            type: "triangle",
-            triangle: {
-              vertex: [b[0], a[1], a[2]],
-              edge1: dydz,
-              edge2: dz,
-            },
-            materialId,
-            smooth: false,
+          createTrianglesFromAABB(aabb).forEach((triangle) => {
+            triangles.push({
+              id: triangles.length,
+              type: "triangle",
+              triangle,
+              materialId,
+              smooth: false,
+            });
           });
         }
 
@@ -736,14 +606,13 @@ const loadScene = async (
             shape.emitter?.radiance[1] ?? 0.0,
             shape.emitter?.radiance[2] ?? 0.0,
           ],
-          color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+          color: renderBoundingBoxes
+            ? [1.0, 0.0, 1.0]
+            : shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
           specular: [0.0, 0.0, 0.0],
           specularWeight: 0.0,
           aabb,
-          triangles: [
-            triangles.length - shape.model?.length!,
-            triangles.length,
-          ],
+          triangles: [trianglesIndexStart, triangles.length],
         };
       } else {
         console.warn(
@@ -897,42 +766,42 @@ const loadScene = async (
   console.log(bvhTree);
 
   const materialId = Object.keys(materials).length;
-  triangles.push(
-    ...createTrianglesFromAABB(bvhTree.left.aabb).map((t, i) => ({
-      id: triangles.length + i,
-      type: "triangle" as const,
-      triangle: t,
-      materialId,
-      smooth: false,
-    }))
-  );
-  triangles.push(
-    ...createTrianglesFromAABB(bvhTree.right.left.aabb).map((t, i) => ({
-      id: triangles.length + i,
-      type: "triangle" as const,
-      triangle: t,
-      materialId,
-      smooth: false,
-    }))
-  );
-  triangles.push(
-    ...createTrianglesFromAABB(bvhTree.right.right.left.aabb).map((t, i) => ({
-      id: triangles.length + i,
-      type: "triangle" as const,
-      triangle: t,
-      materialId,
-      smooth: false,
-    }))
-  );
-  triangles.push(
-    ...createTrianglesFromAABB(bvhTree.right.right.right.aabb).map((t, i) => ({
-      id: triangles.length + i,
-      type: "triangle" as const,
-      triangle: t,
-      materialId,
-      smooth: false,
-    }))
-  );
+  // triangles.push(
+  //   ...createTrianglesFromAABB(bvhTree.left.aabb).map((t, i) => ({
+  //     id: triangles.length + i,
+  //     type: "triangle" as const,
+  //     triangle: t,
+  //     materialId,
+  //     smooth: false,
+  //   }))
+  // );
+  // triangles.push(
+  //   ...createTrianglesFromAABB(bvhTree.right.left.aabb).map((t, i) => ({
+  //     id: triangles.length + i,
+  //     type: "triangle" as const,
+  //     triangle: t,
+  //     materialId,
+  //     smooth: false,
+  //   }))
+  // );
+  // triangles.push(
+  //   ...createTrianglesFromAABB(bvhTree.right.right.left.aabb).map((t, i) => ({
+  //     id: triangles.length + i,
+  //     type: "triangle" as const,
+  //     triangle: t,
+  //     materialId,
+  //     smooth: false,
+  //   }))
+  // );
+  // triangles.push(
+  //   ...createTrianglesFromAABB(bvhTree.right.right.right.aabb).map((t, i) => ({
+  //     id: triangles.length + i,
+  //     type: "triangle" as const,
+  //     triangle: t,
+  //     materialId,
+  //     smooth: false,
+  //   }))
+  // );
   materials["bvh"] = {
     id: materialId,
     name: "bvh",
