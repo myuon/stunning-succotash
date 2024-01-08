@@ -103,7 +103,7 @@ const constructBVHTree = (shapes: BVHShape[], depth: number): BVHTree => {
   const appendAABB = (aabb: [vec3, vec3], shape: BVHShape) => {
     const area = vec3.create();
     vec3.cross(area, shape.edge1, shape.edge2);
-    if (vec3.length(area) > 3.0) {
+    if (vec3.length(area) > 0.5) {
       return aabb;
     }
 
@@ -218,73 +218,74 @@ const createTrianglesFromAABB = (
   aabb: [vec3, vec3]
 ): { vertex: vec3; edge1: vec3; edge2: vec3 }[] => {
   const [a, b] = aabb;
+
   const dx = vec3.fromValues(b[0] - a[0], 0, 0);
   const dy = vec3.fromValues(0, b[1] - a[1], 0);
   const dz = vec3.fromValues(0, 0, b[2] - a[2]);
-  const ndx = vec3.fromValues(-dx[0], 0, 0);
-  const ndy = vec3.fromValues(0, -dy[1], 0);
-  const ndz = vec3.fromValues(0, 0, -dz[2]);
+  const dxdy = vec3.fromValues(b[0] - a[0], b[1] - a[1], 0);
+  const dxdz = vec3.fromValues(b[0] - a[0], 0, b[2] - a[2]);
+  const dydz = vec3.fromValues(0, b[1] - a[1], b[2] - a[2]);
 
   return [
     {
       vertex: a,
       edge1: dx,
+      edge2: dxdy,
+    },
+    {
+      vertex: a,
+      edge1: dxdy,
       edge2: dy,
     },
     {
-      vertex: vec3.fromValues(b[0], b[1], a[2]),
-      edge1: ndx,
-      edge2: ndy,
-    },
-    {
-      vertex: vec3.fromValues(a[0], b[1], a[2]),
-      edge1: dx,
-      edge2: dz,
-    },
-    {
-      vertex: b,
-      edge1: ndz,
-      edge2: ndx,
-    },
-    {
-      vertex: vec3.fromValues(a[0], b[1], b[2]),
+      vertex: a,
       edge1: dy,
+      edge2: dydz,
+    },
+    {
+      vertex: a,
+      edge1: dydz,
       edge2: dz,
-    },
-    {
-      vertex: b,
-      edge1: ndy,
-      edge2: ndz,
-    },
-    {
-      vertex: vec3.fromValues(a[0], a[1], b[2]),
-      edge1: dx,
-      edge2: dy,
-    },
-    {
-      vertex: b,
-      edge1: ndx,
-      edge2: ndy,
     },
     {
       vertex: a,
       edge1: dz,
-      edge2: dx,
-    },
-    {
-      vertex: vec3.fromValues(b[0], a[1], b[2]),
-      edge1: ndz,
-      edge2: ndx,
+      edge2: dxdz,
     },
     {
       vertex: a,
-      edge1: dy,
+      edge1: dxdz,
+      edge2: dx,
+    },
+    {
+      vertex: [a[0], a[1], b[2]],
+      edge1: dx,
+      edge2: dxdy,
+    },
+    {
+      vertex: [a[0], a[1], b[2]],
+      edge1: dxdy,
+      edge2: dy,
+    },
+    {
+      vertex: [a[0], b[1], a[2]],
+      edge1: dx,
+      edge2: dxdz,
+    },
+    {
+      vertex: [a[0], b[1], a[2]],
+      edge1: dxdz,
       edge2: dz,
     },
     {
-      vertex: vec3.fromValues(a[0], b[1], b[2]),
-      edge1: ndy,
-      edge2: ndz,
+      vertex: [b[0], a[1], a[2]],
+      edge1: dy,
+      edge2: dydz,
+    },
+    {
+      vertex: [b[0], a[1], a[2]],
+      edge1: dydz,
+      edge2: dz,
     },
   ];
 };
@@ -906,7 +907,25 @@ const loadScene = async (
     }))
   );
   triangles.push(
-    ...createTrianglesFromAABB(bvhTree.right.aabb).map((t, i) => ({
+    ...createTrianglesFromAABB(bvhTree.right.left.aabb).map((t, i) => ({
+      id: triangles.length + i,
+      type: "triangle" as const,
+      triangle: t,
+      materialId,
+      smooth: false,
+    }))
+  );
+  triangles.push(
+    ...createTrianglesFromAABB(bvhTree.right.right.left.aabb).map((t, i) => ({
+      id: triangles.length + i,
+      type: "triangle" as const,
+      triangle: t,
+      materialId,
+      smooth: false,
+    }))
+  );
+  triangles.push(
+    ...createTrianglesFromAABB(bvhTree.right.right.right.aabb).map((t, i) => ({
       id: triangles.length + i,
       type: "triangle" as const,
       triangle: t,
