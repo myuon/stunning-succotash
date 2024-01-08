@@ -130,6 +130,22 @@ const constructBVHTree = (shapes: BVHShape[], depth: number): BVHTree => {
 
   let result: BVHTree | undefined = undefined;
 
+  const sortShapes = (axisIndex: number) =>
+    shapes.sort((a, b) => {
+      const aCenter = vec3.create();
+      vec3.add(aCenter, a.edge1, a.edge2);
+      vec3.scale(aCenter, aCenter, 1 / 3);
+      vec3.add(aCenter, aCenter, a.vertex);
+
+      const bCenter = vec3.create();
+      vec3.add(bCenter, b.edge1, b.edge2);
+      vec3.scale(bCenter, bCenter, 1 / 3);
+      vec3.add(bCenter, bCenter, b.vertex);
+
+      return aCenter[axisIndex] - bCenter[axisIndex];
+    });
+  const sortedShapes = [sortShapes(0), sortShapes(1), sortShapes(2)];
+
   // split
   ["x", "y", "z"].forEach((_, axisIndex) => {
     shapes.forEach((_, splitAt) => {
@@ -137,21 +153,8 @@ const constructBVHTree = (shapes: BVHShape[], depth: number): BVHTree => {
         return;
       }
 
-      const sortedShapes = shapes.sort((a, b) => {
-        const aCenter = vec3.create();
-        vec3.add(aCenter, a.edge1, a.edge2);
-        vec3.scale(aCenter, aCenter, 1 / 3);
-        vec3.add(aCenter, aCenter, a.vertex);
-
-        const bCenter = vec3.create();
-        vec3.add(bCenter, b.edge1, b.edge2);
-        vec3.scale(bCenter, bCenter, 1 / 3);
-        vec3.add(bCenter, bCenter, b.vertex);
-
-        return aCenter[axisIndex] - bCenter[axisIndex];
-      });
-      const left = sortedShapes.slice(0, splitAt);
-      const right = sortedShapes.slice(splitAt);
+      const left = sortedShapes[axisIndex].slice(0, splitAt);
+      const right = sortedShapes[axisIndex].slice(splitAt);
 
       const boxLeft = constructMinimumAABB(left);
       const boxRight = constructMinimumAABB(right);
@@ -875,16 +878,7 @@ const loadScene = async (
 
   const materialId = Object.keys(materials).length;
   triangles.push(
-    ...createTrianglesFromAABB(bvhTree.left.left.aabb).map((t, i) => ({
-      id: triangles.length + i,
-      type: "triangle" as const,
-      triangle: t,
-      materialId,
-      smooth: false,
-    }))
-  );
-  triangles.push(
-    ...createTrianglesFromAABB(bvhTree.left.right.aabb).map((t, i) => ({
+    ...createTrianglesFromAABB(bvhTree.left.aabb).map((t, i) => ({
       id: triangles.length + i,
       type: "triangle" as const,
       triangle: t,
