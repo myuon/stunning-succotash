@@ -1,6 +1,7 @@
-import { vec3 } from "gl-matrix";
+import { mat4, vec3 } from "gl-matrix";
 
 export interface Shape {
+  id: string;
   type: string;
   bsdf?: {
     diffuse: boolean;
@@ -37,7 +38,7 @@ export const loadMitsubaScene = async (xml: string) => {
   };
   const parseBsdf = (element: Element): DeepPartial<Shape["bsdf"]> => {
     for (const child of element.children) {
-      if (child.nodeName === "diffuse") {
+      if (child.nodeName === "bsdf") {
         return {
           ...(parseBsdf(child) ?? {}),
           diffuse: true,
@@ -62,7 +63,9 @@ export const loadMitsubaScene = async (xml: string) => {
       } else if (child.nodeName === "ref") {
         shape = {
           ...shape,
-          ...parseShape(xmlDoc.getElementById(child.getAttribute("id")!)!),
+          ...(await parseShape(
+            xmlDoc.getElementById(child.getAttribute("id")!)!
+          )),
         };
       } else if (child.nodeName === "transform") {
         shape.matrix = child.children[0]
@@ -87,6 +90,7 @@ export const loadMitsubaScene = async (xml: string) => {
       shapes.push({
         ...parsed,
         type: shape.getAttribute("type")!,
+        id: shape.getAttribute("id")!,
       } as Shape);
     });
   });
@@ -125,6 +129,27 @@ export const transformIntoCamera = (matrix: number[]) => {
     direction: [matrix[2], matrix[6], matrix[10]] as [number, number, number],
     up: [matrix[1], matrix[5], matrix[9]] as [number, number, number],
   };
+};
+
+export const loadMat4 = (matrix: number[]) => {
+  return mat4.fromValues(
+    matrix[0],
+    matrix[4],
+    matrix[8],
+    matrix[12],
+    matrix[1],
+    matrix[5],
+    matrix[9],
+    matrix[13],
+    matrix[2],
+    matrix[6],
+    matrix[10],
+    matrix[14],
+    matrix[3],
+    matrix[7],
+    matrix[11],
+    matrix[15]
+  );
 };
 
 const sceneFiles = import.meta.glob("./scenes/veach-bidir/*", { as: "raw" });

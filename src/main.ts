@@ -7,6 +7,7 @@ import Stats from "stats.js";
 import {
   Scene,
   Triangle,
+  loadMat4,
   loadMitsubaScene,
   loadMtlScene,
   loadObjScene,
@@ -104,38 +105,85 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
     }[] = [];
     scene.shapes.forEach((shape) => {
       if (shape.type === "rectangle") {
-        shapes.push({
-          type: "rectangle",
-          points: [
-            [
-              -shape.matrix[0] - shape.matrix[1] + shape.matrix[3],
-              -shape.matrix[4] - shape.matrix[5] + shape.matrix[7],
-              -shape.matrix[8] - shape.matrix[9] + shape.matrix[11],
-            ],
-            [
-              shape.matrix[0] - shape.matrix[1] + shape.matrix[3],
-              shape.matrix[4] - shape.matrix[5] + shape.matrix[7],
-              shape.matrix[8] - shape.matrix[9] + shape.matrix[11],
-            ],
-            [
-              shape.matrix[0] + shape.matrix[1] + shape.matrix[3],
-              shape.matrix[4] + shape.matrix[5] + shape.matrix[7],
-              shape.matrix[8] + shape.matrix[9] + shape.matrix[11],
-            ],
-            [
-              -shape.matrix[0] + shape.matrix[1] + shape.matrix[3],
-              -shape.matrix[4] + shape.matrix[5] + shape.matrix[7],
-              -shape.matrix[8] + shape.matrix[9] + shape.matrix[11],
-            ],
-          ],
-          color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+        const aabb = [
+          vec3.fromValues(Infinity, Infinity, Infinity),
+          vec3.fromValues(-Infinity, -Infinity, -Infinity),
+        ] as [vec3, vec3];
+        const mat = loadMat4(shape.matrix);
+        const plane = [
+          [-1, 1, 0, 1],
+          [-1, -1, 0, 1],
+          [1, -1, 0, 1],
+          [1, 1, 0, 1],
+        ] as [number, number, number, number][];
+
+        const p1 = vec4.create();
+        vec4.transformMat4(p1, plane[0], mat);
+
+        const p2 = vec4.create();
+        vec4.transformMat4(p2, plane[1], mat);
+
+        const p3 = vec4.create();
+        vec4.transformMat4(p3, plane[2], mat);
+
+        const p4 = vec4.create();
+        vec4.transformMat4(p4, plane[3], mat);
+
+        const p12 = vec4.create();
+        vec4.subtract(p12, p2, p1);
+
+        const p13 = vec4.create();
+        vec4.subtract(p13, p3, p1);
+
+        const p14 = vec4.create();
+        vec4.subtract(p14, p4, p1);
+
+        const materialId = Object.keys(materials).length;
+
+        triangles.push({
+          type: "triangle",
+          triangle: {
+            vertex: [p1[0], p1[1], p1[2]],
+            edge1: [p12[0], p12[1], p12[2]],
+            edge2: [p13[0], p13[1], p13[2]],
+          },
+          materialId,
+          smooth: false,
+        });
+        triangles.push({
+          type: "triangle",
+          triangle: {
+            vertex: [p1[0], p1[1], p1[2]],
+            edge1: [p14[0], p14[1], p14[2]],
+            edge2: [p13[0], p13[1], p13[2]],
+          },
+          materialId,
+          smooth: false,
+        });
+
+        vec3.min(aabb[0], aabb[0], [p1[0], p1[1], p1[2]]);
+        vec3.max(aabb[1], aabb[1], [p1[0], p1[1], p1[2]]);
+        vec3.min(aabb[0], aabb[0], [p2[0], p2[1], p2[2]]);
+        vec3.max(aabb[1], aabb[1], [p2[0], p2[1], p2[2]]);
+        vec3.min(aabb[0], aabb[0], [p3[0], p3[1], p3[2]]);
+        vec3.max(aabb[1], aabb[1], [p3[0], p3[1], p3[2]]);
+        vec3.min(aabb[0], aabb[0], [p4[0], p4[1], p4[2]]);
+        vec3.max(aabb[1], aabb[1], [p4[0], p4[1], p4[2]]);
+
+        materials[shape.id] = {
+          id: materialId,
+          name: shape.id,
           emission: [
             shape.emitter?.radiance[0] ?? 0.0,
             shape.emitter?.radiance[1] ?? 0.0,
             shape.emitter?.radiance[2] ?? 0.0,
           ],
-          reflection: "diffuse",
-        });
+          color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+          specular: [0.0, 0.0, 0.0],
+          specularWeight: 0.0,
+          aabb,
+          triangles: [triangles.length - 2, triangles.length],
+        };
       } else if (shape.type === "cube") {
         const planes = [
           [
@@ -176,24 +224,7 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
           ],
         ] as [number, number, number, number][][];
         planes.forEach((plane) => {
-          const mat = mat4.fromValues(
-            shape.matrix[0],
-            shape.matrix[4],
-            shape.matrix[8],
-            shape.matrix[12],
-            shape.matrix[1],
-            shape.matrix[5],
-            shape.matrix[9],
-            shape.matrix[13],
-            shape.matrix[2],
-            shape.matrix[6],
-            shape.matrix[10],
-            shape.matrix[14],
-            shape.matrix[3],
-            shape.matrix[7],
-            shape.matrix[11],
-            shape.matrix[15]
-          );
+          const mat = loadMat4(shape.matrix);
 
           const p1 = vec4.create();
           vec4.transformMat4(p1, plane[0], mat);
@@ -291,7 +322,10 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
 
     boxObj.objects.forEach((object) => {
       const fs = object.faces;
-      const aabb = [vec3.create(), vec3.create()] as [vec3, vec3];
+      const aabb = [
+        vec3.fromValues(Infinity, Infinity, Infinity),
+        vec3.fromValues(-Infinity, -Infinity, -Infinity),
+      ] as [vec3, vec3];
       const trianglesIndexStart = triangles.length;
 
       fs.forEach((f) => {
