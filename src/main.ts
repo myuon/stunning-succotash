@@ -755,6 +755,8 @@ const loadScene = async (
 
   const now = performance.now();
 
+  const textureSize = 1024;
+
   const bvhTree = constructBVHTree(
     triangles.map((t) => ({ id: t.id, ...t.triangle })),
     0
@@ -762,43 +764,91 @@ const loadScene = async (
   console.log("Tree constructed (sec):", (performance.now() - now) / 1000);
   console.log(bvhTree);
 
+  const bvhTreeTextureData = new Float32Array(textureSize * textureSize * 4);
+  const getMaxTreeIndex = (tree: BVHTree, position: number): number => {
+    if (tree.type === "node") {
+      return Math.max(
+        getMaxTreeIndex(tree.left!, 2 * position + 1),
+        getMaxTreeIndex(tree.right!, 2 * position + 2)
+      );
+    } else if (tree.type === "leaf") {
+      return position;
+    } else {
+      throw new Error("Unknown tree type");
+    }
+  };
+  const serializeBVHTree = (
+    tree: BVHTree,
+    treeIndex: number,
+    nodeCursor: number
+  ): number => {
+    if (tree.type === "node") {
+      let cursor = nodeCursor;
+      bvhTreeTextureData[treeIndex] = cursor;
+
+      bvhTreeTextureData[cursor + 0] = tree.aabb[0][0];
+      bvhTreeTextureData[cursor + 1] = tree.aabb[0][1];
+      bvhTreeTextureData[cursor + 2] = tree.aabb[0][2];
+      bvhTreeTextureData[cursor + 3] = 0; // type: "node"
+
+      bvhTreeTextureData[cursor + 4] = tree.aabb[1][0];
+      bvhTreeTextureData[cursor + 5] = tree.aabb[1][1];
+      bvhTreeTextureData[cursor + 6] = tree.aabb[1][2];
+
+      cursor += 8;
+
+      cursor = serializeBVHTree(tree.left!, 2 * treeIndex + 1, cursor);
+      cursor = serializeBVHTree(tree.right!, 2 * treeIndex + 2, cursor);
+
+      return cursor;
+    } else if (tree.type === "leaf") {
+      let cursor = nodeCursor;
+      bvhTreeTextureData[treeIndex] = cursor;
+
+      bvhTreeTextureData[cursor + 0] = tree.aabb[0][0];
+      bvhTreeTextureData[cursor + 1] = tree.aabb[0][1];
+      bvhTreeTextureData[cursor + 2] = tree.aabb[0][2];
+      bvhTreeTextureData[cursor + 3] = 1; // type: "leaf"
+
+      bvhTreeTextureData[cursor + 4] = tree.aabb[1][0];
+      bvhTreeTextureData[cursor + 5] = tree.aabb[1][1];
+      bvhTreeTextureData[cursor + 6] = tree.aabb[1][2];
+
+      cursor += 8;
+
+      tree.triangles.forEach((triangleId, i) => {
+        bvhTreeTextureData[cursor + i] = triangleId;
+      });
+
+      cursor += Math.ceil(tree.triangles.length / 4);
+
+      return cursor;
+    } else {
+      throw new Error("Unknown tree type");
+    }
+  };
+  serializeBVHTree(bvhTree, 0, getMaxTreeIndex(bvhTree, 0));
+
+  gl.activeTexture(gl.TEXTURE3);
+  const bvhTreeTexture = gl.createTexture()!;
+  gl.bindTexture(gl.TEXTURE_2D, bvhTreeTexture);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA32F,
+    textureSize,
+    textureSize,
+    0,
+    gl.RGBA,
+    gl.FLOAT,
+    bvhTreeTextureData
+  );
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+
   const materialId = Object.keys(materials).length;
-  // triangles.push(
-  //   ...createTrianglesFromAABB(bvhTree.left.aabb).map((t, i) => ({
-  //     id: triangles.length + i,
-  //     type: "triangle" as const,
-  //     triangle: t,
-  //     materialId,
-  //     smooth: false,
-  //   }))
-  // );
-  // triangles.push(
-  //   ...createTrianglesFromAABB(bvhTree.right.left.aabb).map((t, i) => ({
-  //     id: triangles.length + i,
-  //     type: "triangle" as const,
-  //     triangle: t,
-  //     materialId,
-  //     smooth: false,
-  //   }))
-  // );
-  // triangles.push(
-  //   ...createTrianglesFromAABB(bvhTree.right.right.left.aabb).map((t, i) => ({
-  //     id: triangles.length + i,
-  //     type: "triangle" as const,
-  //     triangle: t,
-  //     materialId,
-  //     smooth: false,
-  //   }))
-  // );
-  // triangles.push(
-  //   ...createTrianglesFromAABB(bvhTree.right.right.right.aabb).map((t, i) => ({
-  //     id: triangles.length + i,
-  //     type: "triangle" as const,
-  //     triangle: t,
-  //     materialId,
-  //     smooth: false,
-  //   }))
-  // );
+
   materials["bvh"] = {
     id: materialId,
     name: "bvh",
@@ -810,7 +860,6 @@ const loadScene = async (
     triangles: [triangles.length - 12 * 3, triangles.length],
   };
 
-  const textureSize = 1024;
   const triangleTextureData = new Float32Array(textureSize * textureSize * 4);
   triangles.forEach((triangle, i) => {
     const size = 24;
@@ -911,6 +960,7 @@ const loadScene = async (
   return {
     triangleTexture,
     materialTexture,
+    bvhTreeTexture,
     camera,
     triangles,
     materials,
@@ -953,8 +1003,14 @@ const main = async () => {
   });
 
   const value = loadSettings();
-  let { triangleTexture, materialTexture, camera, triangles, materials } =
-    await loadScene(value.scene, value.renderBoundingBoxes, gl)!;
+  let {
+    triangleTexture,
+    materialTexture,
+    camera,
+    triangles,
+    materials,
+    bvhTreeTexture,
+  } = await loadScene(value.scene, value.renderBoundingBoxes, gl)!;
 
   const stats = new Stats();
   stats.showPanel(0);
@@ -1012,6 +1068,7 @@ const main = async () => {
     camera = resp.camera;
     triangles = resp.triangles;
     materials = resp.materials;
+    bvhTreeTexture = resp.bvhTreeTexture;
 
     reset();
   });
@@ -1025,6 +1082,7 @@ const main = async () => {
     camera = resp.camera;
     triangles = resp.triangles;
     materials = resp.materials;
+    bvhTreeTexture = resp.bvhTreeTexture;
 
     reset();
   });
@@ -1165,6 +1223,7 @@ const main = async () => {
     n_triangles: gl.getUniformLocation(program, "n_triangles"),
     n_materials: gl.getUniformLocation(program, "n_materials"),
     render_type: gl.getUniformLocation(program, "render_type"),
+    bvhTreeTexture: gl.getUniformLocation(program, "bvh_tree_texture"),
   };
 
   const shaderVao = createVao(
@@ -1263,6 +1322,10 @@ const main = async () => {
       gl.activeTexture(gl.TEXTURE2);
       gl.bindTexture(gl.TEXTURE_2D, materialTexture);
       gl.uniform1i(programLocations.materialTexture, 2);
+
+      gl.activeTexture(gl.TEXTURE3);
+      gl.bindTexture(gl.TEXTURE_2D, bvhTreeTexture);
+      gl.uniform1i(programLocations.bvhTreeTexture, 3);
 
       gl.uniform1i(programLocations.iterations, iterations);
       gl.uniform2f(programLocations.resolution, canvas.width, canvas.height);

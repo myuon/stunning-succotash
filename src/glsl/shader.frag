@@ -13,6 +13,7 @@ uniform int spp;
 uniform int render_type;
 uniform sampler2D triangles_texture;
 uniform sampler2D material_texture;
+uniform sampler2D bvh_tree_texture;
 
 const int RenderTypeRender = 0;
 const int RenderTypeColor = 1;
