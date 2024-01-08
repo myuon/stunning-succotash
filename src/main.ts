@@ -94,14 +94,6 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
     };
     console.log(camera);
 
-    const shapes: {
-      type: "rectangle" | "cube" | "mesh";
-      points: vec3[];
-      color: vec3;
-      emission: vec3;
-      reflection: "diffuse" | "specular" | "refractive";
-      model?: Triangle[];
-    }[] = [];
     scene.shapes.forEach((shape) => {
       if (shape.type === "rectangle") {
         const aabb = [
@@ -184,6 +176,11 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
           triangles: [triangles.length - 2, triangles.length],
         };
       } else if (shape.type === "cube") {
+        const aabb = [
+          vec3.fromValues(Infinity, Infinity, Infinity),
+          vec3.fromValues(-Infinity, -Infinity, -Infinity),
+        ] as [vec3, vec3];
+
         const planes = [
           [
             [-1, 1, -1, 1],
@@ -222,6 +219,9 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
             [-1, 1, 1, 1],
           ],
         ] as [number, number, number, number][][];
+
+        const materialId = Object.keys(materials).length;
+
         planes.forEach((plane) => {
           const mat = loadMat4(shape.matrix);
 
@@ -237,36 +237,60 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
           const p4 = vec4.create();
           vec4.transformMat4(p4, plane[3], mat);
 
-          shapes.push({
-            type: "rectangle",
-            points: [
-              [p1[0], p1[1], p1[2]],
-              [p2[0], p2[1], p2[2]],
-              [p3[0], p3[1], p3[2]],
-              [p4[0], p4[1], p4[2]],
-            ],
-            color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
-            emission: [
-              shape.emitter?.radiance[0] ?? 0.0,
-              shape.emitter?.radiance[1] ?? 0.0,
-              shape.emitter?.radiance[2] ?? 0.0,
-            ],
-            reflection: "diffuse",
+          const p12 = vec4.create();
+          vec4.subtract(p12, p2, p1);
+
+          const p13 = vec4.create();
+          vec4.subtract(p13, p3, p1);
+
+          const p14 = vec4.create();
+          vec4.subtract(p14, p4, p1);
+
+          triangles.push({
+            type: "triangle",
+            triangle: {
+              vertex: [p1[0], p1[1], p1[2]],
+              edge1: [p12[0], p12[1], p12[2]],
+              edge2: [p13[0], p13[1], p13[2]],
+            },
+            materialId,
+            smooth: false,
           });
+          triangles.push({
+            type: "triangle",
+            triangle: {
+              vertex: [p1[0], p1[1], p1[2]],
+              edge1: [p14[0], p14[1], p14[2]],
+              edge2: [p13[0], p13[1], p13[2]],
+            },
+            materialId,
+            smooth: false,
+          });
+
+          vec3.min(aabb[0], aabb[0], [p1[0], p1[1], p1[2]]);
+          vec3.max(aabb[1], aabb[1], [p1[0], p1[1], p1[2]]);
+          vec3.min(aabb[0], aabb[0], [p2[0], p2[1], p2[2]]);
+          vec3.max(aabb[1], aabb[1], [p2[0], p2[1], p2[2]]);
+          vec3.min(aabb[0], aabb[0], [p3[0], p3[1], p3[2]]);
+          vec3.max(aabb[1], aabb[1], [p3[0], p3[1], p3[2]]);
+          vec3.min(aabb[0], aabb[0], [p4[0], p4[1], p4[2]]);
+          vec3.max(aabb[1], aabb[1], [p4[0], p4[1], p4[2]]);
         });
-      } else if (shape.type === "obj") {
-        shapes.push({
-          type: "mesh",
-          points: [],
-          model: shape.model,
-          color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+
+        materials[shape.id] = {
+          id: materialId,
+          name: shape.id,
           emission: [
             shape.emitter?.radiance[0] ?? 0.0,
             shape.emitter?.radiance[1] ?? 0.0,
             shape.emitter?.radiance[2] ?? 0.0,
           ],
-          reflection: "diffuse",
-        });
+          color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+          specular: [0.0, 0.0, 0.0],
+          specularWeight: 0.0,
+          aabb,
+          triangles: [triangles.length - 12, triangles.length],
+        };
       } else {
         console.warn(
           `Unknown shape type: ${shape.type} (${JSON.stringify(shape)})`
@@ -274,29 +298,6 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
       }
     });
     console.log(scene);
-
-    shapes.forEach((shape) => {
-      if (shape.type === "mesh") {
-        shape.model!.forEach((triangle) => {
-          let e1 = vec3.create();
-          vec3.subtract(e1, triangle.vertices[1], triangle.vertices[0]);
-
-          let e2 = vec3.create();
-          vec3.subtract(e2, triangle.vertices[2], triangle.vertices[0]);
-
-          triangles.push({
-            type: "triangle",
-            triangle: {
-              vertex: triangle.vertices[0],
-              edge1: e1,
-              edge2: e2,
-            },
-            materialId: 0,
-            smooth: false,
-          });
-        });
-      }
-    });
   } else {
     const boxObj = loadObjScene(await objFiles[sceneFile]());
     const boxMtl = loadMtlScene(
