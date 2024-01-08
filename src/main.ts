@@ -90,25 +90,7 @@ const constructBVHTree = (shapes: BVHShape[], depth: number): BVHTree => {
     ] as [vec3, vec3];
 
     for (let i = 0; i < shapes.length; i++) {
-      const triangle = shapes[i];
-      const area = vec3.create();
-      vec3.cross(area, triangle.edge1, triangle.edge2);
-      if (vec3.length(area) > 3.0) {
-        continue;
-      }
-
-      vec3.min(aabb[0], aabb[0], triangle.vertex);
-      vec3.max(aabb[1], aabb[1], triangle.vertex);
-
-      let v2 = vec3.create();
-      vec3.add(v2, triangle.vertex, triangle.edge1);
-      vec3.min(aabb[0], aabb[0], v2);
-      vec3.max(aabb[1], aabb[1], v2);
-
-      let v3 = vec3.create();
-      vec3.add(v3, triangle.vertex, triangle.edge2);
-      vec3.min(aabb[0], aabb[0], v3);
-      vec3.max(aabb[1], aabb[1], v3);
+      appendAABB(aabb, shapes[i]);
     }
 
     return aabb;
@@ -117,6 +99,28 @@ const constructBVHTree = (shapes: BVHShape[], depth: number): BVHTree => {
     const size = vec3.create();
     vec3.subtract(size, aabb[1], aabb[0]);
     return 2 * (size[0] * size[1] + size[1] * size[2] + size[2] * size[0]);
+  };
+  const appendAABB = (aabb: [vec3, vec3], shape: BVHShape) => {
+    const area = vec3.create();
+    vec3.cross(area, shape.edge1, shape.edge2);
+    if (vec3.length(area) > 3.0) {
+      return aabb;
+    }
+
+    vec3.min(aabb[0], aabb[0], shape.vertex);
+    vec3.max(aabb[1], aabb[1], shape.vertex);
+
+    let v2 = vec3.create();
+    vec3.add(v2, shape.vertex, shape.edge1);
+    vec3.min(aabb[0], aabb[0], v2);
+    vec3.max(aabb[1], aabb[1], v2);
+
+    let v3 = vec3.create();
+    vec3.add(v3, shape.vertex, shape.edge2);
+    vec3.min(aabb[0], aabb[0], v3);
+    vec3.max(aabb[1], aabb[1], v3);
+
+    return aabb;
   };
 
   const COST_AABB = 1;
@@ -148,15 +152,16 @@ const constructBVHTree = (shapes: BVHShape[], depth: number): BVHTree => {
 
   // split
   ["x", "y", "z"].forEach((_, axisIndex) => {
-    shapes.forEach((_, splitAt) => {
-      if (splitAt === 0) {
-        return;
-      }
-
+    let prevBoxLeft = [
+      vec3.fromValues(Infinity, Infinity, Infinity),
+      vec3.fromValues(-Infinity, -Infinity, -Infinity),
+    ] as [vec3, vec3];
+    sortedShapes[axisIndex].forEach((shape, splitAt) => {
       const left = sortedShapes[axisIndex].slice(0, splitAt);
       const right = sortedShapes[axisIndex].slice(splitAt);
 
-      const boxLeft = constructMinimumAABB(left);
+      const boxLeft = appendAABB(prevBoxLeft, shape);
+      prevBoxLeft = boxLeft;
       const boxRight = constructMinimumAABB(right);
 
       const cost =
