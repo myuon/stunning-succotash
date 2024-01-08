@@ -17,6 +17,16 @@ const renderTypes = ["render", "color", "normal"];
 
 const objFiles = import.meta.glob("./scenes/cornell-box-mtl/*", { as: "raw" });
 const xmlFiles = import.meta.glob("./scenes/**/*.xml", { as: "raw" });
+const veachBidirModels = Object.fromEntries(
+  Object.entries(
+    import.meta.glob("./scenes/veach-bidir/**/*.obj", { as: "raw" })
+  ).map(([k, v]) => {
+    return ["models" + k.split("models")[1], v] as [
+      string,
+      () => Promise<string>
+    ];
+  })
+);
 
 const scenes = [
   ...Object.keys(xmlFiles).filter((t) => t.endsWith(".xml")),
@@ -83,7 +93,10 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
   }[] = [];
 
   if (sceneFile.endsWith(".xml")) {
-    const scene = await loadMitsubaScene(await xmlFiles[sceneFile]());
+    const scene = await loadMitsubaScene(
+      await xmlFiles[sceneFile](),
+      sceneFile === "./scenes/veach-bidir/scene.xml" ? veachBidirModels : {}
+    );
 
     camera = {
       ...scene.sensors.camera,
@@ -287,6 +300,60 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
           specularWeight: 0.0,
           aabb,
           triangles: [triangles.length - 12, triangles.length],
+        };
+      } else if (shape.type === "obj") {
+        const aabb = [
+          vec3.fromValues(Infinity, Infinity, Infinity),
+          vec3.fromValues(-Infinity, -Infinity, -Infinity),
+        ] as [vec3, vec3];
+
+        const materialId = Object.keys(materials).length;
+
+        shape.model?.forEach((triangle) => {
+          let e1 = vec3.create();
+          vec3.subtract(e1, triangle.vertices[1], triangle.vertices[0]);
+
+          let e2 = vec3.create();
+          vec3.subtract(e2, triangle.vertices[2], triangle.vertices[0]);
+
+          triangles.push({
+            type: "triangle",
+            triangle: {
+              vertex: triangle.vertices[0],
+              edge1: e1,
+              edge2: e2,
+              normal1: triangle.normals[0],
+              normal2: triangle.normals[1],
+              normal3: triangle.normals[2],
+            },
+            materialId,
+            smooth: true,
+          });
+
+          vec3.min(aabb[0], aabb[0], triangle.vertices[0]);
+          vec3.max(aabb[1], aabb[1], triangle.vertices[0]);
+          vec3.min(aabb[0], aabb[0], triangle.vertices[1]);
+          vec3.max(aabb[1], aabb[1], triangle.vertices[1]);
+          vec3.min(aabb[0], aabb[0], triangle.vertices[2]);
+          vec3.max(aabb[1], aabb[1], triangle.vertices[2]);
+        });
+
+        materials[shape.id] = {
+          id: materialId,
+          name: shape.id,
+          emission: [
+            shape.emitter?.radiance[0] ?? 0.0,
+            shape.emitter?.radiance[1] ?? 0.0,
+            shape.emitter?.radiance[2] ?? 0.0,
+          ],
+          color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+          specular: [0.0, 0.0, 0.0],
+          specularWeight: 0.0,
+          aabb,
+          triangles: [
+            triangles.length - shape.model?.length!,
+            triangles.length,
+          ],
         };
       } else {
         console.warn(

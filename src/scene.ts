@@ -28,7 +28,10 @@ export interface Scene {
 
 type DeepPartial<T> = { [P in keyof T]?: DeepPartial<T[P]> } | undefined;
 
-export const loadMitsubaScene = async (xml: string) => {
+export const loadMitsubaScene = async (
+  xml: string,
+  modelFiles: Record<string, () => Promise<string>>
+) => {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xml, "text/xml");
 
@@ -73,7 +76,9 @@ export const loadMitsubaScene = async (xml: string) => {
           .split(" ")
           .map(parseFloat);
       } else if (child.nodeName === "string") {
-        shape.model = await loadObjFile(child.getAttribute("value")!);
+        shape.model = await loadObjFile(
+          await modelFiles[child.getAttribute("value")!]()
+        );
       }
     }
 
@@ -152,16 +157,12 @@ export const loadMat4 = (matrix: number[]) => {
   );
 };
 
-const sceneFiles = import.meta.glob("./scenes/veach-bidir/*", { as: "raw" });
-
 export interface Triangle {
   vertices: [vec3, vec3, vec3];
   normals: [vec3, vec3, vec3];
 }
 
-export const loadObjFile = async (objFile: string) => {
-  const raw = await sceneFiles[`./scenes/veach-bidir/${objFile}`]();
-
+export const loadObjFile = async (raw: string) => {
   const vertices: vec3[] = [];
   const normals: vec3[] = [];
   const faces: Triangle[] = [];
