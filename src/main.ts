@@ -864,10 +864,13 @@ const loadScene = async (
   console.log(triangles);
   console.log(materials);
 
+  const now = performance.now();
+
   const bvhTree = constructBVHTree(
     triangles.map((t) => ({ id: t.id, ...t.triangle })),
     0
   );
+  console.log("Tree constructed (sec):", (performance.now() - now) / 1000);
   console.log(bvhTree);
 
   const materialId = Object.keys(materials).length;
