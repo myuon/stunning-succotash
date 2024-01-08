@@ -4,10 +4,6 @@ import rendererVertSource from "./glsl/renderer.vert?raw";
 import rendererFragSource from "./glsl/renderer.frag?raw";
 import GUI from "lil-gui";
 import Stats from "stats.js";
-import cornellScene from "./scenes/cornell-box/scene.xml?raw";
-import veachBidirScene from "./scenes/veach-bidir/scene.xml?raw";
-import cornellboxOriginalScene from "./scenes/cornell-box-mtl/CornellBox-Glossy.obj?raw";
-import cornellboxOriginalSceneMtl from "./scenes/cornell-box-mtl/CornellBox-Glossy.mtl?raw";
 import {
   Scene,
   Triangle,
@@ -22,11 +18,36 @@ import { createProgramFromSource, createVao, diagnoseGlError } from "./webgl";
 const renderTypes = ["render", "color", "normal"];
 const scenes = ["veach-bidir"];
 
-const objFiles = import.meta.glob("./scenes/cornell-box-mtl/*");
+const objFiles = import.meta.glob("./scenes/cornell-box-mtl/*", { as: "raw" });
 
-const loadScene = (sceneFile: string, gl: WebGL2RenderingContext) => {
-  const boxObj = loadObjScene(cornellboxOriginalScene);
-  const boxMtl = loadMtlScene(cornellboxOriginalSceneMtl);
+const loadSettings = (): {
+  tick: boolean;
+  renderType: string;
+  spp: number;
+  scene: string;
+} => {
+  try {
+    const settings = localStorage.getItem("settings");
+
+    return JSON.parse(settings ?? "");
+  } catch (err) {
+    return {
+      tick: true,
+      renderType: "render",
+      spp: 1,
+      scene: "./scenes/cornell-box-mtl/CornellBox-Original.obj",
+    };
+  }
+};
+const saveSettings = (value: any) => {
+  localStorage.setItem("settings", JSON.stringify(value));
+};
+
+const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
+  const boxObj = loadObjScene(await objFiles[sceneFile]());
+  const boxMtl = loadMtlScene(
+    await objFiles[sceneFile.replace(".obj", ".mtl")]()
+  );
   console.log(boxObj);
   console.log(boxMtl);
 
@@ -500,8 +521,9 @@ const main = async () => {
     return tex;
   });
 
-  const { triangleTexture, materialTexture, camera, triangles, materials } =
-    loadScene("./scenes/cornell-box-mtl/CornellBox-Glossy.obj", gl)!;
+  const value = loadSettings();
+  let { triangleTexture, materialTexture, camera, triangles, materials } =
+    await loadScene(value.scene, gl)!;
 
   const stats = new Stats();
   stats.showPanel(0);
@@ -531,26 +553,7 @@ const main = async () => {
     });
   };
 
-  const loadSettings = () => {
-    try {
-      const settings = localStorage.getItem("settings");
-
-      return JSON.parse(settings ?? "");
-    } catch (err) {
-      return {
-        tick: true,
-        renderType: "render",
-        spp: 1,
-        scene: "cornell-box",
-      };
-    }
-  };
-  const saveSettings = (value: any) => {
-    localStorage.setItem("settings", JSON.stringify(value));
-  };
-
   const gui = new GUI();
-  const value = loadSettings();
   gui.add(value, "tick").onChange((v: boolean) => {
     value.tick = v;
     saveSettings(value);
@@ -568,10 +571,18 @@ const main = async () => {
     saveSettings(value);
   });
   gui.add({ reset }, "reset");
-  gui.add(value, "scene", scenes).onChange((v: string) => {
+  gui.add(value, "scene", scenes).onChange(async (v: string) => {
     value.scene = v;
-    reset();
     saveSettings(value);
+
+    const resp = await loadScene(v, gl)!;
+    triangleTexture = resp.triangleTexture;
+    materialTexture = resp.materialTexture;
+    camera = resp.camera;
+    triangles = resp.triangles;
+    materials = resp.materials;
+
+    reset();
   });
 
   let angleX = 0.0;
