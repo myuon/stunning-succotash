@@ -172,9 +172,6 @@ const constructBVHTree = (shapes: BVHShape[], depth: number): BVHTree => {
       prevBoxRight = boxRight;
     });
     sortedShapes[axisIndex].forEach((shape, splitAt) => {
-      const left = sortedShapes[axisIndex].slice(0, splitAt);
-      const right = sortedShapes[axisIndex].slice(splitAt);
-
       const boxLeft = appendAABB(prevBoxLeft, shape);
       prevBoxLeft = boxLeft;
 
@@ -191,8 +188,8 @@ const constructBVHTree = (shapes: BVHShape[], depth: number): BVHTree => {
           left: undefined,
           right: undefined,
         };
-        bestLeft = left;
-        bestRight = right;
+        bestLeft = sortedShapes[axisIndex].slice(0, splitAt);
+        bestRight = sortedShapes[axisIndex].slice(splitAt);
         bestCost = cost;
       }
     });
