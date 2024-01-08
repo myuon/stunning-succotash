@@ -5,15 +5,12 @@ import rendererFragSource from "./glsl/renderer.frag?raw";
 import GUI from "lil-gui";
 import Stats from "stats.js";
 import {
-  Scene,
-  Triangle,
   loadMat4,
   loadMitsubaScene,
   loadMtlScene,
   loadObjScene,
-  transformIntoCamera,
 } from "./scene";
-import { mat4, vec3, vec4 } from "gl-matrix";
+import { vec3, vec4 } from "gl-matrix";
 import { createProgramFromSource, createVao, diagnoseGlError } from "./webgl";
 
 const renderTypes = ["render", "color", "normal"];
