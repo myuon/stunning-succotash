@@ -15,6 +15,14 @@ export interface Shape {
 
 export interface Scene {
   shapes: Shape[];
+  sensor: {
+    camera: {
+      position: [number, number, number];
+      direction: [number, number, number];
+      up: [number, number, number];
+    };
+    fov: number;
+  };
 }
 
 type DeepPartial<T> = { [P in keyof T]?: DeepPartial<T[P]> } | undefined;
@@ -69,16 +77,14 @@ export const loadMitsubaScene = async (xml: string) => {
     return shape;
   };
 
-  const scene: Scene = {
-    shapes: [],
-  };
+  const shapes: Shape[] = [];
 
   const promises: (() => Promise<void>)[] = [];
   xmlDoc.querySelectorAll("shape").forEach((shape) => {
     promises.push(async () => {
       const parsed = await parseShape(shape);
 
-      scene.shapes.push({
+      shapes.push({
         ...parsed,
         type: shape.getAttribute("type")!,
       } as Shape);
@@ -87,7 +93,30 @@ export const loadMitsubaScene = async (xml: string) => {
 
   await Promise.all(promises.map((p) => p()));
 
-  return scene;
+  let camera = undefined;
+  let fov = undefined;
+
+  xmlDoc
+    .querySelector("sensor")!
+    .querySelectorAll("matrix")
+    .forEach((elem) => {
+      const cam = elem.getAttribute("value")!.split(" ").map(parseFloat);
+      camera = transformIntoCamera(cam);
+    });
+  xmlDoc
+    .querySelector("sensor")!
+    .querySelectorAll("float")
+    .forEach((elem) => {
+      fov = parseFloat(elem.getAttribute("value")!);
+    });
+
+  return {
+    shapes,
+    sensors: {
+      camera: camera!,
+      fov: fov!,
+    },
+  };
 };
 
 export const transformIntoCamera = (matrix: number[]) => {

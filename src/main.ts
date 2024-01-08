@@ -16,9 +16,14 @@ import { mat4, vec3, vec4 } from "gl-matrix";
 import { createProgramFromSource, createVao, diagnoseGlError } from "./webgl";
 
 const renderTypes = ["render", "color", "normal"];
-const scenes = ["veach-bidir"];
 
 const objFiles = import.meta.glob("./scenes/cornell-box-mtl/*", { as: "raw" });
+const xmlFiles = import.meta.glob("./scenes/**/*.xml", { as: "raw" });
+
+const scenes = [
+  ...Object.keys(xmlFiles).filter((t) => t.endsWith(".xml")),
+  ...Object.keys(objFiles).filter((t) => t.endsWith(".obj")),
+];
 
 const loadSettings = (): {
   tick: boolean;
@@ -44,183 +49,12 @@ const saveSettings = (value: any) => {
 };
 
 const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
-  const boxObj = loadObjScene(await objFiles[sceneFile]());
-  const boxMtl = loadMtlScene(
-    await objFiles[sceneFile.replace(".obj", ".mtl")]()
-  );
-  console.log(boxObj);
-  console.log(boxMtl);
-
-  // const scene = await loadMitsubaScene(veachBidirScene);
-  const scene: Scene = { shapes: [] };
-  const shapes: {
-    type: "rectangle" | "cube" | "mesh";
-    points: vec3[];
-    color: vec3;
-    emission: vec3;
-    reflection: "diffuse" | "specular" | "refractive";
-    model?: Triangle[];
-  }[] = [];
-  scene.shapes.forEach((shape) => {
-    if (shape.type === "rectangle") {
-      shapes.push({
-        type: "rectangle",
-        points: [
-          [
-            -shape.matrix[0] - shape.matrix[1] + shape.matrix[3],
-            -shape.matrix[4] - shape.matrix[5] + shape.matrix[7],
-            -shape.matrix[8] - shape.matrix[9] + shape.matrix[11],
-          ],
-          [
-            shape.matrix[0] - shape.matrix[1] + shape.matrix[3],
-            shape.matrix[4] - shape.matrix[5] + shape.matrix[7],
-            shape.matrix[8] - shape.matrix[9] + shape.matrix[11],
-          ],
-          [
-            shape.matrix[0] + shape.matrix[1] + shape.matrix[3],
-            shape.matrix[4] + shape.matrix[5] + shape.matrix[7],
-            shape.matrix[8] + shape.matrix[9] + shape.matrix[11],
-          ],
-          [
-            -shape.matrix[0] + shape.matrix[1] + shape.matrix[3],
-            -shape.matrix[4] + shape.matrix[5] + shape.matrix[7],
-            -shape.matrix[8] + shape.matrix[9] + shape.matrix[11],
-          ],
-        ],
-        color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
-        emission: [
-          shape.emitter?.radiance[0] ?? 0.0,
-          shape.emitter?.radiance[1] ?? 0.0,
-          shape.emitter?.radiance[2] ?? 0.0,
-        ],
-        reflection: "diffuse",
-      });
-    } else if (shape.type === "cube") {
-      const planes = [
-        [
-          [-1, 1, -1, 1],
-          [-1, -1, -1, 1],
-          [1, -1, -1, 1],
-          [1, 1, -1, 1],
-        ],
-        [
-          [-1, 1, 1, 1],
-          [-1, -1, 1, 1],
-          [1, -1, 1, 1],
-          [1, 1, 1, 1],
-        ],
-        [
-          [-1, 1, 1, 1],
-          [-1, 1, -1, 1],
-          [1, 1, -1, 1],
-          [1, 1, 1, 1],
-        ],
-        [
-          [-1, -1, 1, 1],
-          [-1, -1, -1, 1],
-          [1, -1, -1, 1],
-          [1, -1, 1, 1],
-        ],
-        [
-          [1, 1, -1, 1],
-          [1, -1, -1, 1],
-          [1, -1, 1, 1],
-          [1, 1, 1, 1],
-        ],
-        [
-          [-1, 1, -1, 1],
-          [-1, -1, -1, 1],
-          [-1, -1, 1, 1],
-          [-1, 1, 1, 1],
-        ],
-      ] as [number, number, number, number][][];
-      planes.forEach((plane) => {
-        const mat = mat4.fromValues(
-          shape.matrix[0],
-          shape.matrix[4],
-          shape.matrix[8],
-          shape.matrix[12],
-          shape.matrix[1],
-          shape.matrix[5],
-          shape.matrix[9],
-          shape.matrix[13],
-          shape.matrix[2],
-          shape.matrix[6],
-          shape.matrix[10],
-          shape.matrix[14],
-          shape.matrix[3],
-          shape.matrix[7],
-          shape.matrix[11],
-          shape.matrix[15]
-        );
-
-        const p1 = vec4.create();
-        vec4.transformMat4(p1, plane[0], mat);
-
-        const p2 = vec4.create();
-        vec4.transformMat4(p2, plane[1], mat);
-
-        const p3 = vec4.create();
-        vec4.transformMat4(p3, plane[2], mat);
-
-        const p4 = vec4.create();
-        vec4.transformMat4(p4, plane[3], mat);
-
-        shapes.push({
-          type: "rectangle",
-          points: [
-            [p1[0], p1[1], p1[2]],
-            [p2[0], p2[1], p2[2]],
-            [p3[0], p3[1], p3[2]],
-            [p4[0], p4[1], p4[2]],
-          ],
-          color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
-          emission: [
-            shape.emitter?.radiance[0] ?? 0.0,
-            shape.emitter?.radiance[1] ?? 0.0,
-            shape.emitter?.radiance[2] ?? 0.0,
-          ],
-          reflection: "diffuse",
-        });
-      });
-    } else if (shape.type === "obj") {
-      shapes.push({
-        type: "mesh",
-        points: [],
-        model: shape.model,
-        color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
-        emission: [
-          shape.emitter?.radiance[0] ?? 0.0,
-          shape.emitter?.radiance[1] ?? 0.0,
-          shape.emitter?.radiance[2] ?? 0.0,
-        ],
-        reflection: "diffuse",
-      });
-    } else {
-      console.warn(
-        `Unknown shape type: ${shape.type} (${JSON.stringify(shape)})`
-      );
-    }
-  });
-
-  let up = vec3.create();
-  vec3.normalize(up, [0.0, 1.0, 0.0]);
-
-  let dir = vec3.create();
-  vec3.normalize(dir, [0.0, 0.0, -1.0]);
-
-  const camera = {
-    // ...transformIntoCamera(
-    //   "-0.00500708 -0.00467005 -0.999977 16.2155 0 0.999989 -0.00467011 4.05167 0.999987 -2.34659e-005 -0.00502464 0.0114864 0 0 0 1"
-    //     .split(" ")
-    //     .map(parseFloat)
-    // ),
-    position: vec3.fromValues(0.0, 1.0, 5.0),
-    up,
-    direction: dir,
-    screen_dist: 8,
+  let camera: {
+    position: vec3;
+    up: vec3;
+    direction: vec3;
+    screen_dist: number;
   };
-  console.log(camera);
 
   const materials: Record<
     string,
@@ -249,131 +83,316 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
     materialId: number;
     smooth: boolean;
   }[] = [];
-  shapes.forEach((shape) => {
-    if (shape.type === "mesh") {
-      shape.model!.forEach((triangle) => {
-        let e1 = vec3.create();
-        vec3.subtract(e1, triangle.vertices[1], triangle.vertices[0]);
 
-        let e2 = vec3.create();
-        vec3.subtract(e2, triangle.vertices[2], triangle.vertices[0]);
+  if (sceneFile.endsWith(".xml")) {
+    const scene = await loadMitsubaScene(await xmlFiles[sceneFile]());
 
-        triangles.push({
-          type: "triangle",
-          triangle: {
-            vertex: triangle.vertices[0],
-            edge1: e1,
-            edge2: e2,
-          },
-          materialId: 0,
-          smooth: false,
+    camera = {
+      ...scene.sensors.camera,
+      screen_dist:
+        15 / Math.tan((scene.sensors.camera.fov / 2) * (Math.PI / 180)),
+    };
+    console.log(camera);
+
+    const shapes: {
+      type: "rectangle" | "cube" | "mesh";
+      points: vec3[];
+      color: vec3;
+      emission: vec3;
+      reflection: "diffuse" | "specular" | "refractive";
+      model?: Triangle[];
+    }[] = [];
+    scene.shapes.forEach((shape) => {
+      if (shape.type === "rectangle") {
+        shapes.push({
+          type: "rectangle",
+          points: [
+            [
+              -shape.matrix[0] - shape.matrix[1] + shape.matrix[3],
+              -shape.matrix[4] - shape.matrix[5] + shape.matrix[7],
+              -shape.matrix[8] - shape.matrix[9] + shape.matrix[11],
+            ],
+            [
+              shape.matrix[0] - shape.matrix[1] + shape.matrix[3],
+              shape.matrix[4] - shape.matrix[5] + shape.matrix[7],
+              shape.matrix[8] - shape.matrix[9] + shape.matrix[11],
+            ],
+            [
+              shape.matrix[0] + shape.matrix[1] + shape.matrix[3],
+              shape.matrix[4] + shape.matrix[5] + shape.matrix[7],
+              shape.matrix[8] + shape.matrix[9] + shape.matrix[11],
+            ],
+            [
+              -shape.matrix[0] + shape.matrix[1] + shape.matrix[3],
+              -shape.matrix[4] + shape.matrix[5] + shape.matrix[7],
+              -shape.matrix[8] + shape.matrix[9] + shape.matrix[11],
+            ],
+          ],
+          color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+          emission: [
+            shape.emitter?.radiance[0] ?? 0.0,
+            shape.emitter?.radiance[1] ?? 0.0,
+            shape.emitter?.radiance[2] ?? 0.0,
+          ],
+          reflection: "diffuse",
         });
-      });
-    }
-  });
-  boxObj.objects.forEach((object) => {
-    const fs = object.faces;
-    const aabb = [vec3.create(), vec3.create()] as [vec3, vec3];
-    const trianglesIndexStart = triangles.length;
+      } else if (shape.type === "cube") {
+        const planes = [
+          [
+            [-1, 1, -1, 1],
+            [-1, -1, -1, 1],
+            [1, -1, -1, 1],
+            [1, 1, -1, 1],
+          ],
+          [
+            [-1, 1, 1, 1],
+            [-1, -1, 1, 1],
+            [1, -1, 1, 1],
+            [1, 1, 1, 1],
+          ],
+          [
+            [-1, 1, 1, 1],
+            [-1, 1, -1, 1],
+            [1, 1, -1, 1],
+            [1, 1, 1, 1],
+          ],
+          [
+            [-1, -1, 1, 1],
+            [-1, -1, -1, 1],
+            [1, -1, -1, 1],
+            [1, -1, 1, 1],
+          ],
+          [
+            [1, 1, -1, 1],
+            [1, -1, -1, 1],
+            [1, -1, 1, 1],
+            [1, 1, 1, 1],
+          ],
+          [
+            [-1, 1, -1, 1],
+            [-1, -1, -1, 1],
+            [-1, -1, 1, 1],
+            [-1, 1, 1, 1],
+          ],
+        ] as [number, number, number, number][][];
+        planes.forEach((plane) => {
+          const mat = mat4.fromValues(
+            shape.matrix[0],
+            shape.matrix[4],
+            shape.matrix[8],
+            shape.matrix[12],
+            shape.matrix[1],
+            shape.matrix[5],
+            shape.matrix[9],
+            shape.matrix[13],
+            shape.matrix[2],
+            shape.matrix[6],
+            shape.matrix[10],
+            shape.matrix[14],
+            shape.matrix[3],
+            shape.matrix[7],
+            shape.matrix[11],
+            shape.matrix[15]
+          );
 
-    fs.forEach((f) => {
-      if (f.vertices.length === 3) {
-        let e10 = vec3.create();
-        vec3.subtract(e10, f.vertices[1], f.vertices[0]);
+          const p1 = vec4.create();
+          vec4.transformMat4(p1, plane[0], mat);
 
-        let e20 = vec3.create();
-        vec3.subtract(e20, f.vertices[2], f.vertices[0]);
+          const p2 = vec4.create();
+          vec4.transformMat4(p2, plane[1], mat);
 
-        const material = boxMtl.find((m) => m.name === object.usemtl)!;
-        const materialId = materials[object.usemtl]
-          ? materials[object.usemtl].id
-          : Object.keys(materials).length;
-        materials[object.usemtl] = {
-          id: materialId,
-          name: object.usemtl,
-          emission: material.Ke ?? [0.0, 0.0, 0.0],
-          color: material.Ka ?? [0.0, 0.0, 0.0],
-          specular: material.Ks ?? [0.0, 0.0, 0.0],
-          specularWeight: material.Ns ?? 0.0,
-        };
+          const p3 = vec4.create();
+          vec4.transformMat4(p3, plane[2], mat);
 
-        triangles.push({
-          type: "triangle",
-          triangle: {
-            vertex: f.vertices[0],
-            edge1: e10,
-            edge2: e20,
-            normal1: f.normals[0],
-            normal2: f.normals[1],
-            normal3: f.normals[2],
-          },
-          materialId,
-          smooth: object.smooth ?? false,
+          const p4 = vec4.create();
+          vec4.transformMat4(p4, plane[3], mat);
+
+          shapes.push({
+            type: "rectangle",
+            points: [
+              [p1[0], p1[1], p1[2]],
+              [p2[0], p2[1], p2[2]],
+              [p3[0], p3[1], p3[2]],
+              [p4[0], p4[1], p4[2]],
+            ],
+            color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+            emission: [
+              shape.emitter?.radiance[0] ?? 0.0,
+              shape.emitter?.radiance[1] ?? 0.0,
+              shape.emitter?.radiance[2] ?? 0.0,
+            ],
+            reflection: "diffuse",
+          });
         });
-
-        vec3.min(aabb[0], aabb[0], f.vertices[0]);
-        vec3.max(aabb[1], aabb[1], f.vertices[0]);
-        vec3.min(aabb[0], aabb[0], f.vertices[1]);
-        vec3.max(aabb[1], aabb[1], f.vertices[1]);
-        vec3.min(aabb[0], aabb[0], f.vertices[2]);
-        vec3.max(aabb[1], aabb[1], f.vertices[2]);
-      } else if (f.vertices.length === 4) {
-        let e10 = vec3.create();
-        vec3.subtract(e10, f.vertices[1], f.vertices[0]);
-
-        let e20 = vec3.create();
-        vec3.subtract(e20, f.vertices[2], f.vertices[0]);
-
-        let e30 = vec3.create();
-        vec3.subtract(e30, f.vertices[3], f.vertices[0]);
-
-        const material = boxMtl.find((m) => m.name === object.usemtl)!;
-        const materialId = materials[object.usemtl]
-          ? materials[object.usemtl].id
-          : Object.keys(materials).length;
-        materials[object.usemtl] = {
-          id: materialId,
-          name: object.usemtl,
-          emission: material.Ke ?? [0.0, 0.0, 0.0],
-          color: material.Ka ?? [0.0, 0.0, 0.0],
-          specular: material.Ks ?? [0.0, 0.0, 0.0],
-          specularWeight: material.Ns ?? 0.0,
-        };
-
-        triangles.push({
-          type: "triangle",
-          triangle: {
-            vertex: f.vertices[0],
-            edge1: e10,
-            edge2: e20,
-          },
-          materialId,
-          smooth: object.smooth ?? false,
-        });
-        triangles.push({
-          type: "triangle",
-          triangle: {
-            vertex: f.vertices[0],
-            edge1: e30,
-            edge2: e20,
-          },
-          materialId,
-          smooth: object.smooth ?? false,
+      } else if (shape.type === "obj") {
+        shapes.push({
+          type: "mesh",
+          points: [],
+          model: shape.model,
+          color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+          emission: [
+            shape.emitter?.radiance[0] ?? 0.0,
+            shape.emitter?.radiance[1] ?? 0.0,
+            shape.emitter?.radiance[2] ?? 0.0,
+          ],
+          reflection: "diffuse",
         });
       } else {
-        console.error("not implemented");
-        throw new Error("not implemented");
+        console.warn(
+          `Unknown shape type: ${shape.type} (${JSON.stringify(shape)})`
+        );
       }
     });
+    console.log(scene);
 
-    const trianglesIndexEnd = triangles.length;
+    shapes.forEach((shape) => {
+      if (shape.type === "mesh") {
+        shape.model!.forEach((triangle) => {
+          let e1 = vec3.create();
+          vec3.subtract(e1, triangle.vertices[1], triangle.vertices[0]);
 
-    materials[object.usemtl].aabb = aabb;
-    materials[object.usemtl].triangles = [
-      trianglesIndexStart,
-      trianglesIndexEnd,
-    ];
-  });
+          let e2 = vec3.create();
+          vec3.subtract(e2, triangle.vertices[2], triangle.vertices[0]);
+
+          triangles.push({
+            type: "triangle",
+            triangle: {
+              vertex: triangle.vertices[0],
+              edge1: e1,
+              edge2: e2,
+            },
+            materialId: 0,
+            smooth: false,
+          });
+        });
+      }
+    });
+  } else {
+    const boxObj = loadObjScene(await objFiles[sceneFile]());
+    const boxMtl = loadMtlScene(
+      await objFiles[sceneFile.replace(".obj", ".mtl")]()
+    );
+    console.log(boxObj);
+    console.log(boxMtl);
+
+    let up = vec3.create();
+    vec3.normalize(up, [0.0, 1.0, 0.0]);
+
+    let dir = vec3.create();
+    vec3.normalize(dir, [0.0, 0.0, -1.0]);
+
+    camera = {
+      position: vec3.fromValues(0.0, 1.0, 5.0),
+      up,
+      direction: dir,
+      screen_dist: 8,
+    };
+    console.log(camera);
+
+    boxObj.objects.forEach((object) => {
+      const fs = object.faces;
+      const aabb = [vec3.create(), vec3.create()] as [vec3, vec3];
+      const trianglesIndexStart = triangles.length;
+
+      fs.forEach((f) => {
+        if (f.vertices.length === 3) {
+          let e10 = vec3.create();
+          vec3.subtract(e10, f.vertices[1], f.vertices[0]);
+
+          let e20 = vec3.create();
+          vec3.subtract(e20, f.vertices[2], f.vertices[0]);
+
+          const material = boxMtl.find((m) => m.name === object.usemtl)!;
+          const materialId = materials[object.usemtl]
+            ? materials[object.usemtl].id
+            : Object.keys(materials).length;
+          materials[object.usemtl] = {
+            id: materialId,
+            name: object.usemtl,
+            emission: material.Ke ?? [0.0, 0.0, 0.0],
+            color: material.Ka ?? [0.0, 0.0, 0.0],
+            specular: material.Ks ?? [0.0, 0.0, 0.0],
+            specularWeight: material.Ns ?? 0.0,
+          };
+
+          triangles.push({
+            type: "triangle",
+            triangle: {
+              vertex: f.vertices[0],
+              edge1: e10,
+              edge2: e20,
+              normal1: f.normals[0],
+              normal2: f.normals[1],
+              normal3: f.normals[2],
+            },
+            materialId,
+            smooth: object.smooth ?? false,
+          });
+
+          vec3.min(aabb[0], aabb[0], f.vertices[0]);
+          vec3.max(aabb[1], aabb[1], f.vertices[0]);
+          vec3.min(aabb[0], aabb[0], f.vertices[1]);
+          vec3.max(aabb[1], aabb[1], f.vertices[1]);
+          vec3.min(aabb[0], aabb[0], f.vertices[2]);
+          vec3.max(aabb[1], aabb[1], f.vertices[2]);
+        } else if (f.vertices.length === 4) {
+          let e10 = vec3.create();
+          vec3.subtract(e10, f.vertices[1], f.vertices[0]);
+
+          let e20 = vec3.create();
+          vec3.subtract(e20, f.vertices[2], f.vertices[0]);
+
+          let e30 = vec3.create();
+          vec3.subtract(e30, f.vertices[3], f.vertices[0]);
+
+          const material = boxMtl.find((m) => m.name === object.usemtl)!;
+          const materialId = materials[object.usemtl]
+            ? materials[object.usemtl].id
+            : Object.keys(materials).length;
+          materials[object.usemtl] = {
+            id: materialId,
+            name: object.usemtl,
+            emission: material.Ke ?? [0.0, 0.0, 0.0],
+            color: material.Ka ?? [0.0, 0.0, 0.0],
+            specular: material.Ks ?? [0.0, 0.0, 0.0],
+            specularWeight: material.Ns ?? 0.0,
+          };
+
+          triangles.push({
+            type: "triangle",
+            triangle: {
+              vertex: f.vertices[0],
+              edge1: e10,
+              edge2: e20,
+            },
+            materialId,
+            smooth: object.smooth ?? false,
+          });
+          triangles.push({
+            type: "triangle",
+            triangle: {
+              vertex: f.vertices[0],
+              edge1: e30,
+              edge2: e20,
+            },
+            materialId,
+            smooth: object.smooth ?? false,
+          });
+        } else {
+          console.error("not implemented");
+          throw new Error("not implemented");
+        }
+      });
+
+      const trianglesIndexEnd = triangles.length;
+
+      materials[object.usemtl].aabb = aabb;
+      materials[object.usemtl].triangles = [
+        trianglesIndexStart,
+        trianglesIndexEnd,
+      ];
+    });
+  }
   console.log(triangles);
   console.log(materials);
 
@@ -485,8 +504,6 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
 };
 
 const main = async () => {
-  scenes.push(...Object.keys(objFiles).filter((t) => t.endsWith(".obj")));
-
   const output = document.getElementById("output")! as HTMLDivElement;
   const canvas = document.getElementById("glcanvas")! as HTMLCanvasElement;
   const gl = canvas.getContext("webgl2");
