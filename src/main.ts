@@ -20,9 +20,11 @@ import { mat4, vec3, vec4 } from "gl-matrix";
 import { createProgramFromSource, createVao, diagnoseGlError } from "./webgl";
 
 const renderTypes = ["render", "color", "normal"];
-const scenes = ["cornell-box", "veach-bidir"];
+const scenes = ["veach-bidir"];
 
-const main = async () => {
+const objFiles = import.meta.glob("./scenes/cornell-box-mtl/*");
+
+const loadScene = (sceneFile: string, gl: WebGL2RenderingContext) => {
   const boxObj = loadObjScene(cornellboxOriginalScene);
   const boxMtl = loadMtlScene(cornellboxOriginalSceneMtl);
   console.log(boxObj);
@@ -180,18 +182,6 @@ const main = async () => {
     }
   });
 
-  const output = document.getElementById("output")! as HTMLDivElement;
-  const canvas = document.getElementById("glcanvas")! as HTMLCanvasElement;
-  const gl = canvas.getContext("webgl2");
-  if (!gl) {
-    console.error("Failed to get WebGL context");
-    return;
-  }
-
-  console.log(gl.getExtension("EXT_color_buffer_float")!);
-  console.log(gl.getParameter(gl.MAX_COMBINED_UNIFORM_BLOCKS));
-  console.log(gl.getParameter(gl.MAX_TEXTURE_SIZE));
-
   let up = vec3.create();
   vec3.normalize(up, [0.0, 1.0, 0.0]);
 
@@ -210,313 +200,6 @@ const main = async () => {
     screen_dist: 8,
   };
   console.log(camera);
-
-  const program = createProgramFromSource(
-    gl,
-    shaderVertSource,
-    shaderFragSource
-  );
-  if (!program) return;
-
-  const programLocations = {
-    position: gl.getAttribLocation(program, "position"),
-    texcoord: gl.getAttribLocation(program, "a_texcoord"),
-    texture: gl.getUniformLocation(program, "u_texture"),
-    trianglesTexture: gl.getUniformLocation(program, "triangles_texture"),
-    materialTexture: gl.getUniformLocation(program, "material_texture"),
-    iterations: gl.getUniformLocation(program, "iterations"),
-    resolution: gl.getUniformLocation(program, "resolution"),
-    camera_position: gl.getUniformLocation(program, "camera_position"),
-    camera_direction: gl.getUniformLocation(program, "camera_direction"),
-    camera_up: gl.getUniformLocation(program, "camera_up"),
-    screen_dist: gl.getUniformLocation(program, "screen_dist"),
-    spp: gl.getUniformLocation(program, "spp"),
-    n_triangles: gl.getUniformLocation(program, "n_triangles"),
-    n_materials: gl.getUniformLocation(program, "n_materials"),
-    render_type: gl.getUniformLocation(program, "render_type"),
-  };
-
-  const shaderVao = createVao(
-    gl,
-    [
-      [
-        [-1.0, 1.0, 0.0],
-        [1.0, 1.0, 0.0],
-        [-1.0, -1.0, 0.0],
-        [1.0, -1.0, 0.0],
-      ].flat(),
-      [
-        [-1.0, 1.0],
-        [1.0, 1.0],
-        [-1.0, -1.0],
-        [1.0, -1.0],
-      ].flat(),
-    ],
-    [programLocations.position, programLocations.texcoord],
-    [3, 2],
-    [
-      [0, 1, 2],
-      [1, 2, 3],
-    ].flat()
-  );
-  if (!shaderVao) {
-    console.error("Failed to create vertexArray");
-    return;
-  }
-
-  const rendererProgram = createProgramFromSource(
-    gl,
-    rendererVertSource,
-    rendererFragSource
-  );
-  if (!rendererProgram) return;
-
-  const rendererProgramLocations = {
-    position: gl.getAttribLocation(rendererProgram, "position"),
-    texcoord: gl.getAttribLocation(rendererProgram, "a_texcoord"),
-    texture: gl.getUniformLocation(rendererProgram, "u_texture"),
-    iterations: gl.getUniformLocation(rendererProgram, "iterations"),
-  };
-
-  const rendererVao = createVao(
-    gl,
-    [
-      [
-        [-1.0, 1.0, 0.0],
-        [1.0, 1.0, 0.0],
-        [-1.0, -1.0, 0.0],
-        [1.0, -1.0, 0.0],
-      ].flat(),
-      [
-        [-1.0, 1.0],
-        [1.0, 1.0],
-        [-1.0, -1.0],
-        [1.0, -1.0],
-      ].flat(),
-    ],
-    [rendererProgramLocations.position, rendererProgramLocations.texcoord],
-    [3, 2],
-    [
-      [0, 1, 2],
-      [1, 2, 3],
-    ].flat()
-  );
-  if (!rendererVao) {
-    console.error("Failed to create vertexArray");
-    return;
-  }
-
-  const textures = Array.from({ length: 2 }).map(() => {
-    const tex = gl.createTexture()!;
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA32F,
-      canvas.width,
-      canvas.height,
-      0,
-      gl.RGBA,
-      gl.FLOAT,
-      null
-    );
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-
-    return tex;
-  });
-
-  const reset = () => {
-    // clear textures
-    textures.forEach((tex) => {
-      gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA32F,
-        canvas.width,
-        canvas.height,
-        0,
-        gl.RGBA,
-        gl.FLOAT,
-        null
-      );
-      gl.bindTexture(gl.TEXTURE_2D, null);
-    });
-
-    iterations = 1;
-  };
-
-  const fbo = gl.createFramebuffer();
-  if (!fbo) {
-    console.error("Failed to create frameBuffer");
-    return;
-  }
-
-  let iterations = 1;
-
-  let angleX = 0.0;
-  let angleY = 0.0;
-
-  let prevMousePosition: [number, number] | null = null;
-  canvas.addEventListener("mousedown", (e) => {
-    prevMousePosition = [e.clientX, e.clientY];
-  });
-  canvas.addEventListener("mouseup", () => {
-    prevMousePosition = null;
-  });
-  canvas.addEventListener("mousemove", (e) => {
-    if (prevMousePosition) {
-      const dx = e.clientX - prevMousePosition[0];
-      const dy = e.clientY - prevMousePosition[1];
-
-      angleX += dy * 0.01;
-      angleY -= dx * 0.01;
-
-      angleX = Math.max(Math.min(angleX, Math.PI / 2), -Math.PI / 2);
-      angleY = angleY % (Math.PI * 2);
-
-      const lookAt = vec3.create();
-      vec3.scaleAndAdd(
-        lookAt,
-        camera.position,
-        camera.direction,
-        camera.screen_dist
-      );
-
-      let cam = vec3.create();
-      vec3.subtract(cam, camera.position, lookAt);
-      vec3.normalize(cam, cam);
-
-      let phi = Math.atan2(cam[2], cam[0]);
-      if (phi < 0) {
-        phi += Math.PI * 2;
-      } else if (phi > Math.PI * 2) {
-        phi -= Math.PI * 2;
-      }
-      let theta = Math.acos(cam[1]);
-
-      phi -= 0.01 * dx;
-      theta += 0.01 * dy;
-
-      cam = [
-        Math.sin(theta) * Math.cos(phi),
-        Math.cos(theta),
-        Math.sin(theta) * Math.sin(phi),
-      ];
-
-      vec3.scaleAndAdd(camera.position, lookAt, cam, camera.screen_dist);
-
-      camera.direction = [-cam[0], -cam[1], -cam[2]];
-
-      const right = vec3.create();
-      vec3.cross(right, camera.direction, [0, 1, 0]);
-
-      vec3.cross(camera.up, right, camera.direction);
-
-      prevMousePosition = [e.clientX, e.clientY];
-      reset();
-    }
-  });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "w") {
-      const up = vec3.fromValues(camera.up[0], camera.up[1], camera.up[2]);
-      vec3.scale(up, up, 0.1);
-
-      vec3.add(camera.position, camera.position, up);
-      iterations = 1;
-      reset();
-    } else if (e.key === "s") {
-      const up = vec3.fromValues(camera.up[0], camera.up[1], camera.up[2]);
-      vec3.scale(up, up, 0.1);
-
-      vec3.subtract(camera.position, camera.position, up);
-      iterations = 1;
-      reset();
-    } else if (e.key === "a") {
-      const right = vec3.create();
-      vec3.cross(right, camera.direction, camera.up);
-      vec3.scale(right, right, 0.1);
-
-      vec3.subtract(camera.position, camera.position, right);
-      iterations = 1;
-      reset();
-    } else if (e.key === "d") {
-      const right = vec3.create();
-      vec3.cross(right, camera.direction, camera.up);
-      vec3.scale(right, right, 0.1);
-
-      vec3.add(camera.position, camera.position, right);
-      iterations = 1;
-      reset();
-    } else if (e.key == "q") {
-      camera.position = [
-        camera.position[0] - camera.direction[0],
-        camera.position[1] - camera.direction[1],
-        camera.position[2] - camera.direction[2],
-      ];
-      iterations = 1;
-      reset();
-    } else if (e.key == "e") {
-      camera.position = [
-        camera.position[0] + camera.direction[0],
-        camera.position[1] + camera.direction[1],
-        camera.position[2] + camera.direction[2],
-      ];
-      iterations = 1;
-      reset();
-    }
-  });
-
-  const stats = new Stats();
-  stats.showPanel(0);
-  document.body.appendChild(stats.dom);
-
-  const loadSettings = () => {
-    try {
-      const settings = localStorage.getItem("settings");
-
-      return JSON.parse(settings ?? "");
-    } catch (err) {
-      return {
-        tick: true,
-        renderType: "render",
-        spp: 1,
-        scene: "cornell-box",
-      };
-    }
-  };
-  const saveSettings = (value: any) => {
-    localStorage.setItem("settings", JSON.stringify(value));
-  };
-
-  const gui = new GUI();
-  const value = loadSettings();
-  gui.add(value, "tick").onChange((v: boolean) => {
-    value.tick = v;
-    saveSettings(value);
-  });
-  gui
-    .add(value, "spp", [1, 2, 4, 8, 16, 32, 64, 128, 256])
-    .onChange((v: number) => {
-      value.spp = v;
-      reset();
-      saveSettings(value);
-    });
-  gui.add(value, "renderType", renderTypes).onChange((v: string) => {
-    value.renderType = v;
-    reset();
-    saveSettings(value);
-  });
-  gui.add({ reset }, "reset");
-  gui.add(value, "scene", scenes).onChange((v: string) => {
-    value.scene = v;
-    reset();
-    saveSettings(value);
-  });
 
   const materials: Record<
     string,
@@ -770,6 +453,340 @@ const main = async () => {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.bindTexture(gl.TEXTURE_2D, null);
+
+  return {
+    triangleTexture,
+    materialTexture,
+    camera,
+    triangles,
+    materials,
+  };
+};
+
+const main = async () => {
+  scenes.push(...Object.keys(objFiles).filter((t) => t.endsWith(".obj")));
+
+  const output = document.getElementById("output")! as HTMLDivElement;
+  const canvas = document.getElementById("glcanvas")! as HTMLCanvasElement;
+  const gl = canvas.getContext("webgl2");
+  if (!gl) {
+    console.error("Failed to get WebGL context");
+    return;
+  }
+
+  console.log(gl.getExtension("EXT_color_buffer_float")!);
+  console.log(gl.getParameter(gl.MAX_COMBINED_UNIFORM_BLOCKS));
+  console.log(gl.getParameter(gl.MAX_TEXTURE_SIZE));
+
+  const textures = Array.from({ length: 2 }).map(() => {
+    const tex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA32F,
+      canvas.width,
+      canvas.height,
+      0,
+      gl.RGBA,
+      gl.FLOAT,
+      null
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+    return tex;
+  });
+
+  const { triangleTexture, materialTexture, camera, triangles, materials } =
+    loadScene("./scenes/cornell-box-mtl/CornellBox-Glossy.obj", gl)!;
+
+  const stats = new Stats();
+  stats.showPanel(0);
+  document.body.appendChild(stats.dom);
+
+  let iterations = 1;
+
+  const reset = () => {
+    iterations = 1;
+
+    // clear textures
+    textures.forEach((tex) => {
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA32F,
+        canvas.width,
+        canvas.height,
+        0,
+        gl.RGBA,
+        gl.FLOAT,
+        null
+      );
+      gl.bindTexture(gl.TEXTURE_2D, null);
+    });
+  };
+
+  const loadSettings = () => {
+    try {
+      const settings = localStorage.getItem("settings");
+
+      return JSON.parse(settings ?? "");
+    } catch (err) {
+      return {
+        tick: true,
+        renderType: "render",
+        spp: 1,
+        scene: "cornell-box",
+      };
+    }
+  };
+  const saveSettings = (value: any) => {
+    localStorage.setItem("settings", JSON.stringify(value));
+  };
+
+  const gui = new GUI();
+  const value = loadSettings();
+  gui.add(value, "tick").onChange((v: boolean) => {
+    value.tick = v;
+    saveSettings(value);
+  });
+  gui
+    .add(value, "spp", [1, 2, 4, 8, 16, 32, 64, 128, 256])
+    .onChange((v: number) => {
+      value.spp = v;
+      reset();
+      saveSettings(value);
+    });
+  gui.add(value, "renderType", renderTypes).onChange((v: string) => {
+    value.renderType = v;
+    reset();
+    saveSettings(value);
+  });
+  gui.add({ reset }, "reset");
+  gui.add(value, "scene", scenes).onChange((v: string) => {
+    value.scene = v;
+    reset();
+    saveSettings(value);
+  });
+
+  let angleX = 0.0;
+  let angleY = 0.0;
+
+  let prevMousePosition: [number, number] | null = null;
+  canvas.addEventListener("mousedown", (e) => {
+    prevMousePosition = [e.clientX, e.clientY];
+  });
+  canvas.addEventListener("mouseup", () => {
+    prevMousePosition = null;
+  });
+  canvas.addEventListener("mousemove", (e) => {
+    if (prevMousePosition) {
+      const dx = e.clientX - prevMousePosition[0];
+      const dy = e.clientY - prevMousePosition[1];
+
+      angleX += dy * 0.01;
+      angleY -= dx * 0.01;
+
+      angleX = Math.max(Math.min(angleX, Math.PI / 2), -Math.PI / 2);
+      angleY = angleY % (Math.PI * 2);
+
+      const lookAt = vec3.create();
+      vec3.scaleAndAdd(
+        lookAt,
+        camera.position,
+        camera.direction,
+        camera.screen_dist
+      );
+
+      let cam = vec3.create();
+      vec3.subtract(cam, camera.position, lookAt);
+      vec3.normalize(cam, cam);
+
+      let phi = Math.atan2(cam[2], cam[0]);
+      if (phi < 0) {
+        phi += Math.PI * 2;
+      } else if (phi > Math.PI * 2) {
+        phi -= Math.PI * 2;
+      }
+      let theta = Math.acos(cam[1]);
+
+      phi -= 0.01 * dx;
+      theta += 0.01 * dy;
+
+      cam = [
+        Math.sin(theta) * Math.cos(phi),
+        Math.cos(theta),
+        Math.sin(theta) * Math.sin(phi),
+      ];
+
+      vec3.scaleAndAdd(camera.position, lookAt, cam, camera.screen_dist);
+
+      camera.direction = [-cam[0], -cam[1], -cam[2]];
+
+      const right = vec3.create();
+      vec3.cross(right, camera.direction, [0, 1, 0]);
+
+      vec3.cross(camera.up, right, camera.direction);
+
+      prevMousePosition = [e.clientX, e.clientY];
+      reset();
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "w") {
+      const up = vec3.fromValues(camera.up[0], camera.up[1], camera.up[2]);
+      vec3.scale(up, up, 0.1);
+
+      vec3.add(camera.position, camera.position, up);
+      iterations = 1;
+      reset();
+    } else if (e.key === "s") {
+      const up = vec3.fromValues(camera.up[0], camera.up[1], camera.up[2]);
+      vec3.scale(up, up, 0.1);
+
+      vec3.subtract(camera.position, camera.position, up);
+      iterations = 1;
+      reset();
+    } else if (e.key === "a") {
+      const right = vec3.create();
+      vec3.cross(right, camera.direction, camera.up);
+      vec3.scale(right, right, 0.1);
+
+      vec3.subtract(camera.position, camera.position, right);
+      iterations = 1;
+      reset();
+    } else if (e.key === "d") {
+      const right = vec3.create();
+      vec3.cross(right, camera.direction, camera.up);
+      vec3.scale(right, right, 0.1);
+
+      vec3.add(camera.position, camera.position, right);
+      iterations = 1;
+      reset();
+    } else if (e.key == "q") {
+      camera.position = [
+        camera.position[0] - camera.direction[0],
+        camera.position[1] - camera.direction[1],
+        camera.position[2] - camera.direction[2],
+      ];
+      iterations = 1;
+      reset();
+    } else if (e.key == "e") {
+      camera.position = [
+        camera.position[0] + camera.direction[0],
+        camera.position[1] + camera.direction[1],
+        camera.position[2] + camera.direction[2],
+      ];
+      iterations = 1;
+      reset();
+    }
+  });
+
+  const program = createProgramFromSource(
+    gl,
+    shaderVertSource,
+    shaderFragSource
+  );
+  if (!program) return;
+
+  const programLocations = {
+    position: gl.getAttribLocation(program, "position"),
+    texcoord: gl.getAttribLocation(program, "a_texcoord"),
+    texture: gl.getUniformLocation(program, "u_texture"),
+    trianglesTexture: gl.getUniformLocation(program, "triangles_texture"),
+    materialTexture: gl.getUniformLocation(program, "material_texture"),
+    iterations: gl.getUniformLocation(program, "iterations"),
+    resolution: gl.getUniformLocation(program, "resolution"),
+    camera_position: gl.getUniformLocation(program, "camera_position"),
+    camera_direction: gl.getUniformLocation(program, "camera_direction"),
+    camera_up: gl.getUniformLocation(program, "camera_up"),
+    screen_dist: gl.getUniformLocation(program, "screen_dist"),
+    spp: gl.getUniformLocation(program, "spp"),
+    n_triangles: gl.getUniformLocation(program, "n_triangles"),
+    n_materials: gl.getUniformLocation(program, "n_materials"),
+    render_type: gl.getUniformLocation(program, "render_type"),
+  };
+
+  const shaderVao = createVao(
+    gl,
+    [
+      [
+        [-1.0, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+      ].flat(),
+      [
+        [-1.0, 1.0],
+        [1.0, 1.0],
+        [-1.0, -1.0],
+        [1.0, -1.0],
+      ].flat(),
+    ],
+    [programLocations.position, programLocations.texcoord],
+    [3, 2],
+    [
+      [0, 1, 2],
+      [1, 2, 3],
+    ].flat()
+  );
+  if (!shaderVao) {
+    console.error("Failed to create vertexArray");
+    return;
+  }
+
+  const rendererProgram = createProgramFromSource(
+    gl,
+    rendererVertSource,
+    rendererFragSource
+  );
+  if (!rendererProgram) return;
+
+  const rendererProgramLocations = {
+    position: gl.getAttribLocation(rendererProgram, "position"),
+    texcoord: gl.getAttribLocation(rendererProgram, "a_texcoord"),
+    texture: gl.getUniformLocation(rendererProgram, "u_texture"),
+    iterations: gl.getUniformLocation(rendererProgram, "iterations"),
+  };
+
+  const rendererVao = createVao(
+    gl,
+    [
+      [
+        [-1.0, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [-1.0, -1.0, 0.0],
+        [1.0, -1.0, 0.0],
+      ].flat(),
+      [
+        [-1.0, 1.0],
+        [1.0, 1.0],
+        [-1.0, -1.0],
+        [1.0, -1.0],
+      ].flat(),
+    ],
+    [rendererProgramLocations.position, rendererProgramLocations.texcoord],
+    [3, 2],
+    [
+      [0, 1, 2],
+      [1, 2, 3],
+    ].flat()
+  );
+  if (!rendererVao) {
+    console.error("Failed to create vertexArray");
+    return;
+  }
+
+  const fbo = gl.createFramebuffer();
+  if (!fbo) {
+    console.error("Failed to create frameBuffer");
+    return;
+  }
 
   const loop = () => {
     stats.begin();
