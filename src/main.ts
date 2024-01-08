@@ -156,19 +156,33 @@ const constructBVHTree = (shapes: BVHShape[], depth: number): BVHTree => {
       vec3.fromValues(Infinity, Infinity, Infinity),
       vec3.fromValues(-Infinity, -Infinity, -Infinity),
     ] as [vec3, vec3];
+
+    const boxRightSurfaces = Array.from(
+      { length: sortedShapes[axisIndex].length },
+      () => 0.0
+    );
+    let prevBoxRight = [
+      vec3.fromValues(Infinity, Infinity, Infinity),
+      vec3.fromValues(-Infinity, -Infinity, -Infinity),
+    ] as [vec3, vec3];
+    [...sortedShapes[axisIndex]].reverse().forEach((shape, i) => {
+      const boxRight = appendAABB(prevBoxRight, shape);
+      boxRightSurfaces[sortedShapes[axisIndex].length - i - 1] =
+        surfaceAABB(boxRight);
+      prevBoxRight = boxRight;
+    });
     sortedShapes[axisIndex].forEach((shape, splitAt) => {
       const left = sortedShapes[axisIndex].slice(0, splitAt);
       const right = sortedShapes[axisIndex].slice(splitAt);
 
       const boxLeft = appendAABB(prevBoxLeft, shape);
       prevBoxLeft = boxLeft;
-      const boxRight = constructMinimumAABB(right);
 
       const cost =
         COST_AABB * 2 +
         (COST_TRIANGLE * shapes.length * surfaceAABB(boxLeft)) /
           surfaceAABB(boxAll) +
-        (COST_TRIANGLE * shapes.length * surfaceAABB(boxRight)) /
+        (COST_TRIANGLE * shapes.length * boxRightSurfaces[splitAt]) /
           surfaceAABB(boxAll);
       if (cost < bestCost) {
         result = {
