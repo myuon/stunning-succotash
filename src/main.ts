@@ -532,7 +532,8 @@ const main = async () => {
     }
   > = {};
 
-  const triangles: {
+  let triangles: {
+    id: number;
     type: "triangle";
     triangle: {
       vertex: vec3;
@@ -555,6 +556,7 @@ const main = async () => {
         vec3.subtract(e2, triangle.vertices[2], triangle.vertices[0]);
 
         triangles.push({
+          id: triangles.length,
           type: "triangle",
           triangle: {
             vertex: triangle.vertices[0],
@@ -594,6 +596,7 @@ const main = async () => {
         };
 
         triangles.push({
+          id: triangles.length,
           type: "triangle",
           triangle: {
             vertex: f.vertices[0],
@@ -637,6 +640,7 @@ const main = async () => {
         };
 
         triangles.push({
+          id: triangles.length,
           type: "triangle",
           triangle: {
             vertex: f.vertices[0],
@@ -647,6 +651,7 @@ const main = async () => {
           smooth: object.smooth ?? false,
         });
         triangles.push({
+          id: triangles.length,
           type: "triangle",
           triangle: {
             vertex: f.vertices[0],
@@ -672,6 +677,247 @@ const main = async () => {
   });
   console.log(triangles);
   console.log(materials);
+
+  type BVHTree =
+    | {
+        type: "node";
+        aabb: [vec3, vec3];
+        left?: BVHTree;
+        right?: BVHTree;
+      }
+    | {
+        type: "leaf";
+        aabb: [vec3, vec3];
+        triangles: number[];
+      };
+  type BVHShape = {
+    id: number;
+    vertex: vec3;
+    edge1: vec3;
+    edge2: vec3;
+  };
+
+  const constructBVHTree = (shapes: BVHShape[], depth: number): BVHTree => {
+    console.log("constructBVHTree", depth);
+    const constructMinimumAABB = (shapes: BVHShape[]) => {
+      const aabb = [
+        vec3.fromValues(Infinity, Infinity, Infinity),
+        vec3.fromValues(-Infinity, -Infinity, -Infinity),
+      ] as [vec3, vec3];
+
+      for (let i = 0; i < shapes.length; i++) {
+        const triangle = shapes[i];
+
+        vec3.min(aabb[0], aabb[0], triangle.vertex);
+        vec3.max(aabb[1], aabb[1], triangle.vertex);
+
+        let v2 = vec3.create();
+        vec3.add(v2, triangle.vertex, triangle.edge1);
+        vec3.min(aabb[0], aabb[0], v2);
+        vec3.max(aabb[1], aabb[1], v2);
+
+        let v3 = vec3.create();
+        vec3.add(v3, triangle.vertex, triangle.edge2);
+        vec3.min(aabb[0], aabb[0], v3);
+        vec3.max(aabb[1], aabb[1], v3);
+      }
+
+      return aabb;
+    };
+    const surfaceAABB = (aabb: [vec3, vec3]) => {
+      const size = vec3.create();
+      vec3.subtract(size, aabb[1], aabb[0]);
+      return 2 * (size[0] * size[1] + size[1] * size[2] + size[2] * size[0]);
+    };
+
+    const COST_AABB = 2;
+    const COST_TRIANGLE = 1;
+
+    const boxAll = constructMinimumAABB(shapes);
+
+    let bestCost = COST_TRIANGLE * shapes.length * (depth < 2 ? 2.0 : 1.0);
+    let bestLeft: BVHShape[] = [];
+    let bestRight: BVHShape[] = [];
+
+    let result: BVHTree | undefined = undefined;
+
+    // split
+    ["x", "y", "z"].forEach((_, axisIndex) => {
+      shapes.forEach((_, splitAt) => {
+        if (splitAt === 0) {
+          return;
+        }
+
+        const sortedShapes = shapes.sort((a, b) => {
+          const aCenter = vec3.create();
+          vec3.add(aCenter, a.edge1, a.edge2);
+          vec3.scale(aCenter, aCenter, 1 / 3);
+          vec3.add(aCenter, aCenter, a.vertex);
+
+          const bCenter = vec3.create();
+          vec3.add(bCenter, b.edge1, b.edge2);
+          vec3.scale(bCenter, bCenter, 1 / 3);
+          vec3.add(bCenter, bCenter, b.vertex);
+
+          return aCenter[axisIndex] - bCenter[axisIndex];
+        });
+        const left = sortedShapes.slice(0, splitAt);
+        const right = sortedShapes.slice(splitAt);
+
+        const boxLeft = constructMinimumAABB(left);
+        const boxRight = constructMinimumAABB(right);
+
+        const cost =
+          COST_AABB * 2 +
+          (COST_TRIANGLE * shapes.length * surfaceAABB(boxLeft)) /
+            surfaceAABB(boxAll) +
+          (COST_TRIANGLE * shapes.length * surfaceAABB(boxRight)) /
+            surfaceAABB(boxAll);
+        if (cost < bestCost) {
+          result = {
+            type: "node" as const,
+            aabb: boxAll,
+            left: undefined,
+            right: undefined,
+          };
+          bestLeft = left;
+          bestRight = right;
+          bestCost = cost;
+        }
+      });
+    });
+    if (result === undefined) {
+      result = {
+        type: "leaf",
+        aabb: boxAll,
+        triangles: shapes.map((t) => t.id),
+      };
+    }
+
+    const resultAsTree = result as BVHTree;
+    if (resultAsTree.type === "node") {
+      resultAsTree.left = constructBVHTree(bestLeft, depth + 1);
+      resultAsTree.right = constructBVHTree(bestRight, depth + 1);
+    }
+
+    return result;
+  };
+  const bvhTree = constructBVHTree(
+    triangles.map((t) => ({ id: t.id, ...t.triangle })),
+    0
+  );
+  console.log(bvhTree);
+
+  const createTrianglesFromAABB = (
+    aabb: [vec3, vec3]
+  ): { vertex: vec3; edge1: vec3; edge2: vec3 }[] => {
+    const [a, b] = aabb;
+    const dx = vec3.fromValues(b[0] - a[0], 0, 0);
+    const dy = vec3.fromValues(0, b[1] - a[1], 0);
+    const dz = vec3.fromValues(0, 0, b[2] - a[2]);
+    const ndx = vec3.fromValues(-dx[0], 0, 0);
+    const ndy = vec3.fromValues(0, -dy[1], 0);
+    const ndz = vec3.fromValues(0, 0, -dz[2]);
+
+    return [
+      {
+        vertex: a,
+        edge1: dx,
+        edge2: dy,
+      },
+      {
+        vertex: vec3.fromValues(b[0], b[1], a[2]),
+        edge1: ndx,
+        edge2: ndy,
+      },
+      {
+        vertex: vec3.fromValues(a[0], b[1], a[2]),
+        edge1: dx,
+        edge2: dz,
+      },
+      {
+        vertex: b,
+        edge1: ndz,
+        edge2: ndx,
+      },
+      {
+        vertex: vec3.fromValues(a[0], b[1], b[2]),
+        edge1: dy,
+        edge2: dz,
+      },
+      {
+        vertex: b,
+        edge1: ndy,
+        edge2: ndz,
+      },
+      {
+        vertex: vec3.fromValues(a[0], a[1], b[2]),
+        edge1: dx,
+        edge2: dy,
+      },
+      {
+        vertex: b,
+        edge1: ndx,
+        edge2: ndy,
+      },
+      {
+        vertex: a,
+        edge1: dz,
+        edge2: dx,
+      },
+      {
+        vertex: vec3.fromValues(b[0], a[1], b[2]),
+        edge1: ndz,
+        edge2: ndx,
+      },
+      {
+        vertex: a,
+        edge1: dy,
+        edge2: dz,
+      },
+      {
+        vertex: vec3.fromValues(a[0], b[1], b[2]),
+        edge1: ndy,
+        edge2: ndz,
+      },
+    ];
+  };
+
+  // showing boundingboxes for debug
+  const materialId = Object.keys(materials).length;
+  triangles.push(
+    ...createTrianglesFromAABB(bvhTree.left.aabb).map((t) => ({
+      id: triangles.length,
+      type: "triangle" as const,
+      triangle: t,
+      materialId,
+      smooth: false,
+    }))
+    // ...createTrianglesFromAABB(bvhTree.right.left.aabb).map((t) => ({
+    //   id: triangles.length,
+    //   type: "triangle" as const,
+    //   triangle: t,
+    //   materialId,
+    //   smooth: false,
+    // })),
+    // ...createTrianglesFromAABB(bvhTree.right.right.aabb).map((t) => ({
+    //   id: triangles.length,
+    //   type: "triangle" as const,
+    //   triangle: t,
+    //   materialId,
+    //   smooth: false,
+    // }))
+  );
+  materials["bvh"] = {
+    id: materialId,
+    name: "bvh",
+    emission: [0.0, 0.0, 0.0],
+    color: [1.0, 0.0, 1.0],
+    specular: [0.0, 0.0, 0.0],
+    specularWeight: 0.0,
+    aabb: bvhTree.aabb,
+    triangles: [triangles.length - 12, triangles.length],
+  };
 
   const textureSize = 1024;
   const triangleTextureData = new Float32Array(textureSize * textureSize * 4);
