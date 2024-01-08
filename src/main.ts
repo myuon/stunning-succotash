@@ -90,8 +90,7 @@ const loadScene = async (sceneFile: string, gl: WebGL2RenderingContext) => {
 
     camera = {
       ...scene.sensors.camera,
-      screen_dist:
-        15 / Math.tan((scene.sensors.camera.fov / 2) * (Math.PI / 180)),
+      screen_dist: 3.0 / Math.tan((scene.sensors.fov / 2) * (Math.PI / 180)),
     };
     console.log(camera);
 
