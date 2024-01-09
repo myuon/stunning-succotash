@@ -813,14 +813,15 @@ const loadScene = async (
       bvhTreeTextureData[cursor + 4] = tree.aabb[1][0];
       bvhTreeTextureData[cursor + 5] = tree.aabb[1][1];
       bvhTreeTextureData[cursor + 6] = tree.aabb[1][2];
+      bvhTreeTextureData[cursor + 7] = tree.triangles.length;
 
       cursor += 8;
 
       tree.triangles.forEach((triangleId, i) => {
-        bvhTreeTextureData[cursor + i] = triangleId;
+        bvhTreeTextureData[cursor + i * 4] = triangleId;
       });
 
-      cursor += Math.ceil(tree.triangles.length / 4);
+      cursor += tree.triangles.length * 4;
 
       return cursor;
     } else {

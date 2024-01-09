@@ -212,6 +212,42 @@ Material fetchMaterial(int index) {
     return Material(index, color, emission, specular, specular_weight, AABB(minv, maxv), t_index_min, t_index_max);
 }
 
+struct BVHTreeNode {
+    uint bvh_tree_node_type;
+    AABB aabb;
+    int left;
+    int right;
+    int n_triangles;
+    int t_index;
+};
+
+const uint BVHTreeNodeTypeNode = 0u;
+const uint BVHTreeNodeTypeLeaf = 1u;
+
+BVHTreeNode fetchBVHTreeNode(int index) {
+    int x = index % textureSize;
+    int y = index / textureSize;
+
+    int cursor = int(texture(bvh_tree_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).x);
+
+    int cx = cursor % textureSize;
+    int cy = cursor / textureSize;
+
+    vec3 minv = texture(bvh_tree_texture, vec2(float(cx) / float(textureSize), float(cy) / float(textureSize))).xyz;
+    uint bvh_tree_node_type = uint(texture(bvh_tree_texture, vec2(float(cx) / float(textureSize), float(cy) / float(textureSize))).w);
+    vec3 maxv = texture(bvh_tree_texture, vec2(float(cx + 1) / float(textureSize), float(cy) / float(textureSize))).xyz;
+    int n_triangles = int(texture(bvh_tree_texture, vec2(float(cx + 1) / float(textureSize), float(cy) / float(textureSize))).w);
+
+    return BVHTreeNode(
+        bvh_tree_node_type,
+        AABB(minv, maxv),
+        index * 2 + 1,
+        index * 2 + 2,
+        n_triangles,
+        cursor + 2
+    );
+}
+
 const uint TTriangle = 0u;
 
 struct HitInScene {
