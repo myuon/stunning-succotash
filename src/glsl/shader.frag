@@ -88,10 +88,10 @@ float det(vec3 a, vec3 b, vec3 c) {
         - a.z * b.y * c.x - a.y * b.x * c.z - a.x * b.z * c.y;
 }
 
-HitRecord Triangle_intersect(Triangle self, Ray ray) {
+bool Triangle_intersect(Triangle self, Ray ray, inout HitRecord hit) {
     float d = det(self.edge1, self.edge2, -ray.direction);
     if (abs(d) < kEPS) {
-        return HitRecord(false, vec3(0.0), vec3(0.0));
+        return false;
     }
 
     vec3 ov = ray.origin - self.vertex;
@@ -100,15 +100,22 @@ HitRecord Triangle_intersect(Triangle self, Ray ray) {
     float v = det(self.edge1, ov, -ray.direction) / d;
     float t = det(self.edge1, self.edge2, ov) / d;
     if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0 || u + v > 1.0 || t < kEPS) {
-        return HitRecord(false, vec3(0.0), vec3(0.0));
+        return false;
     }
 
     if (self.smooth_normal) {
         vec3 normal = normalize(self.normal0 * (1.0 - u - v) + self.normal1 * u + self.normal2 * v);
-        return HitRecord(true, normal, self.vertex + self.edge1 * u + self.edge2 * v);
+
+        hit.normal = normal;
+        hit.point = self.vertex + self.edge1 * u + self.edge2 * v;
+
+        return true;
     }
 
-    return HitRecord(true, normalize(cross(self.edge1, self.edge2)), self.vertex + self.edge1 * u + self.edge2 * v);
+    hit.normal = normalize(cross(self.edge1, self.edge2));
+    hit.point = self.vertex + self.edge1 * u + self.edge2 * v;
+
+    return true;
 }
 
 vec2 getNormalizedXYCoord(int index, int textureSize) {
@@ -334,9 +341,9 @@ HitInScene intersect(Ray ray){
 
         for (int j = material.t_index_min; j < material.t_index_max; j++) {
             Triangle obj = fetchTriangle(j);
-            HitRecord r = Triangle_intersect(obj, ray);
 
-            if (r.hit) {
+            HitRecord r;
+            if (Triangle_intersect(obj, ray, r)) {
                 float t = length(r.point - ray.origin);
                 if (t < dist) {
                     dist = t;
