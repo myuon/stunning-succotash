@@ -278,10 +278,6 @@ HitInScene intersect(Ray ray){
     while (stop_infinite_loop-- > 0) {
         if (fetchBVHTreeNode(node_index, node)) {
             if (node.bvh_tree_node_type == BVHTreeNodeTypeLeaf) {
-                hit.index = 1;
-                hit.r.normal = vec3(0.5);
-                return hit;
-
                 for (int i = node.t_index; i < node.t_index + node.n_triangles; i++) {
                     Triangle obj = fetchTriangle(i);
                     HitRecord r = Triangle_intersect(obj, ray);
@@ -315,44 +311,44 @@ HitInScene intersect(Ray ray){
                 } else if (AABB_intersect(right.aabb, ray)) {
                     node_index = node.right;
                 } else {
-                    hit.r.normal = vec3(0.5);
+                    hit.r.normal = vec3(1, 0, 1);
                     return hit;
                 }
 
                 continue;
             }
         } else {
-            hit.r.normal = vec3(0.5);
+            hit.r.normal = vec3(1, 0, 1);
             return hit;
         }
     }
 
-    for(int i = 0; i < n_materials; i++){
-        Material m = fetchMaterial(i);
-        if (!AABB_intersect(m.aabb, ray)) {
-            continue;
-        }
+    // for(int i = 0; i < n_materials; i++){
+    //     Material m = fetchMaterial(i);
+    //     if (!AABB_intersect(m.aabb, ray)) {
+    //         continue;
+    //     }
 
-        for(int i = m.t_index_min; i < m.t_index_max; i++){
-            Triangle obj = fetchTriangle(i);
-            if (obj.material_id != m.id) {
-                continue;
-            }
-            HitRecord r = Triangle_intersect(obj, ray);
+    //     for(int i = m.t_index_min; i < m.t_index_max; i++){
+    //         Triangle obj = fetchTriangle(i);
+    //         if (obj.material_id != m.id) {
+    //             continue;
+    //         }
+    //         HitRecord r = Triangle_intersect(obj, ray);
 
-            if (r.hit) {
-                float t = length(r.point - ray.origin);
-                if (t < dist) {
-                    dist = t;
-                    hit.index = i;
-                    hit.type = TTriangle;
-                    hit.r = r;
+    //         if (r.hit) {
+    //             float t = length(r.point - ray.origin);
+    //             if (t < dist) {
+    //                 dist = t;
+    //                 hit.index = i;
+    //                 hit.type = TTriangle;
+    //                 hit.r = r;
 
-                    continue;
-                }
-            }
-        }
-    }
+    //                 continue;
+    //             }
+    //         }
+    //     }
+    // }
 
     return hit;
 }
