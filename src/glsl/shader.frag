@@ -200,6 +200,7 @@ Material fetchMaterial(int index) {
     int x = (index * size) % textureSize;
     int y = (index * size) / textureSize;
 
+    // FIXME: これだと、x + kがちょうど次の行に進む時におかしくなる
     vec3 color = texture(material_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).xyz;
     vec3 emission = texture(material_texture, vec2(float(x + 1) / float(textureSize), float(y) / float(textureSize))).xyz;
     vec3 specular = texture(material_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).xyz;
@@ -221,14 +222,19 @@ struct BVHTreeNode {
     int t_index;
 };
 
+uniform int n_bvh_tree_nodes;
+
 const uint BVHTreeNodeTypeNode = 0u;
 const uint BVHTreeNodeTypeLeaf = 1u;
 
-BVHTreeNode fetchBVHTreeNode(int index) {
+bool fetchBVHTreeNode(int index, inout BVHTreeNode node) {
     int x = index % textureSize;
     int y = index / textureSize;
 
     int cursor = int(texture(bvh_tree_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).x);
+    if (cursor == 0) {
+        return false;
+    }
 
     int cx = cursor % textureSize;
     int cy = cursor / textureSize;
@@ -238,14 +244,16 @@ BVHTreeNode fetchBVHTreeNode(int index) {
     vec3 maxv = texture(bvh_tree_texture, vec2(float(cx + 1) / float(textureSize), float(cy) / float(textureSize))).xyz;
     int n_triangles = int(texture(bvh_tree_texture, vec2(float(cx + 1) / float(textureSize), float(cy) / float(textureSize))).w);
 
-    return BVHTreeNode(
+    node = BVHTreeNode(
         bvh_tree_node_type,
         AABB(minv, maxv),
         index * 2 + 1,
         index * 2 + 2,
         n_triangles,
-        cursor + 2
+        cursor
     );
+
+    return true;
 }
 
 const uint TTriangle = 0u;
@@ -259,6 +267,66 @@ struct HitInScene {
 HitInScene intersect(Ray ray){
     float dist = 1000000.0;
     HitInScene hit = HitInScene(-1, TTriangle, HitRecord(false, vec3(0.0), vec3(0.0)));
+
+    BVHTreeNode node;
+    if (!fetchBVHTreeNode(0, node)) {
+        return hit;
+    }
+
+    int node_index = 0;
+    int stop_infinite_loop = 100;
+    while (stop_infinite_loop-- > 0) {
+        if (fetchBVHTreeNode(node_index, node)) {
+            if (node.bvh_tree_node_type == BVHTreeNodeTypeLeaf) {
+                hit.index = 1;
+                hit.r.normal = vec3(0.5);
+                return hit;
+
+                for (int i = node.t_index; i < node.t_index + node.n_triangles; i++) {
+                    Triangle obj = fetchTriangle(i);
+                    HitRecord r = Triangle_intersect(obj, ray);
+
+                    if (r.hit) {
+                        float t = length(r.point - ray.origin);
+                        if (t < dist) {
+                            dist = t;
+                            hit.index = i;
+                            hit.type = TTriangle;
+                            hit.r = r;
+
+                            continue;
+                        }
+                    }
+                }
+
+                return hit;
+            } else if (node.bvh_tree_node_type == BVHTreeNodeTypeNode) {
+                if (!AABB_intersect(node.aabb, ray)) {
+                    return hit;
+                }
+
+                BVHTreeNode left;
+                fetchBVHTreeNode(node.left, left);
+                BVHTreeNode right;
+                fetchBVHTreeNode(node.right, right);
+
+                if (AABB_intersect(left.aabb, ray)) {
+                    node_index = node.left;
+                } else if (AABB_intersect(right.aabb, ray)) {
+                    node_index = node.right;
+                } else {
+                    hit.r.normal = vec3(0.5);
+                    return hit;
+                }
+
+                continue;
+            }
+        } else {
+            hit.r.normal = vec3(0.5);
+            return hit;
+        }
+    }
+
     for(int i = 0; i < n_materials; i++){
         Material m = fetchMaterial(i);
         if (!AABB_intersect(m.aabb, ray)) {

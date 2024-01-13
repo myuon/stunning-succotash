@@ -211,6 +211,19 @@ const constructBVHTree = (shapes: BVHShape[], depth: number): BVHTree => {
   return result;
 };
 
+const getMaxTreeIndex = (tree: BVHTree, position: number): number => {
+  if (tree.type === "node") {
+    return Math.max(
+      getMaxTreeIndex(tree.left!, 2 * position + 1),
+      getMaxTreeIndex(tree.right!, 2 * position + 2)
+    );
+  } else if (tree.type === "leaf") {
+    return position;
+  } else {
+    throw new Error("Unknown tree type");
+  }
+};
+
 const createTrianglesFromAABB = (
   aabb: [vec3, vec3]
 ): { vertex: vec3; edge1: vec3; edge2: vec3 }[] => {
@@ -765,18 +778,6 @@ const loadScene = async (
   console.log(bvhTree);
 
   const bvhTreeTextureData = new Float32Array(textureSize * textureSize * 4);
-  const getMaxTreeIndex = (tree: BVHTree, position: number): number => {
-    if (tree.type === "node") {
-      return Math.max(
-        getMaxTreeIndex(tree.left!, 2 * position + 1),
-        getMaxTreeIndex(tree.right!, 2 * position + 2)
-      );
-    } else if (tree.type === "leaf") {
-      return position;
-    } else {
-      throw new Error("Unknown tree type");
-    }
-  };
   const serializeBVHTree = (
     tree: BVHTree,
     treeIndex: number,
@@ -784,7 +785,8 @@ const loadScene = async (
   ): number => {
     if (tree.type === "node") {
       let cursor = nodeCursor;
-      bvhTreeTextureData[treeIndex] = cursor;
+      // NOTE: Float32Array will be read by 4 floats at a time (rgba), so we need to divide by 4
+      bvhTreeTextureData[treeIndex * 4] = cursor / 4;
 
       bvhTreeTextureData[cursor + 0] = tree.aabb[0][0];
       bvhTreeTextureData[cursor + 1] = tree.aabb[0][1];
@@ -803,7 +805,7 @@ const loadScene = async (
       return cursor;
     } else if (tree.type === "leaf") {
       let cursor = nodeCursor;
-      bvhTreeTextureData[treeIndex] = cursor;
+      bvhTreeTextureData[treeIndex * 4] = cursor / 4;
 
       bvhTreeTextureData[cursor + 0] = tree.aabb[0][0];
       bvhTreeTextureData[cursor + 1] = tree.aabb[0][1];
@@ -828,7 +830,8 @@ const loadScene = async (
       throw new Error("Unknown tree type");
     }
   };
-  serializeBVHTree(bvhTree, 0, getMaxTreeIndex(bvhTree, 0));
+  serializeBVHTree(bvhTree, 0, (getMaxTreeIndex(bvhTree, 0) + 1) * 4);
+  console.log(bvhTreeTextureData);
 
   gl.activeTexture(gl.TEXTURE3);
   const bvhTreeTexture = gl.createTexture()!;
@@ -962,6 +965,7 @@ const loadScene = async (
     triangleTexture,
     materialTexture,
     bvhTreeTexture,
+    bvhTree,
     camera,
     triangles,
     materials,
@@ -1011,6 +1015,7 @@ const main = async () => {
     triangles,
     materials,
     bvhTreeTexture,
+    bvhTree,
   } = await loadScene(value.scene, value.renderBoundingBoxes, gl)!;
 
   const stats = new Stats();
@@ -1070,6 +1075,7 @@ const main = async () => {
     triangles = resp.triangles;
     materials = resp.materials;
     bvhTreeTexture = resp.bvhTreeTexture;
+    bvhTree = resp.bvhTree;
 
     reset();
   });
@@ -1084,6 +1090,7 @@ const main = async () => {
     triangles = resp.triangles;
     materials = resp.materials;
     bvhTreeTexture = resp.bvhTreeTexture;
+    bvhTree = resp.bvhTree;
 
     reset();
   });
@@ -1225,6 +1232,7 @@ const main = async () => {
     n_materials: gl.getUniformLocation(program, "n_materials"),
     render_type: gl.getUniformLocation(program, "render_type"),
     bvhTreeTexture: gl.getUniformLocation(program, "bvh_tree_texture"),
+    n_bvh_tree_nodes: gl.getUniformLocation(program, "n_bvh_tree_nodes"),
   };
 
   const shaderVao = createVao(
@@ -1340,6 +1348,10 @@ const main = async () => {
       gl.uniform1i(
         programLocations.render_type,
         renderTypes.indexOf(value.renderType)
+      );
+      gl.uniform1i(
+        programLocations.n_bvh_tree_nodes,
+        getMaxTreeIndex(bvhTree, 0)
       );
 
       gl.bindVertexArray(shaderVao);
