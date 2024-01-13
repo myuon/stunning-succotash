@@ -268,59 +268,83 @@ HitInScene intersect(Ray ray){
     float dist = 1000000.0;
     HitInScene hit = HitInScene(-1, TTriangle, HitRecord(false, vec3(0.0), vec3(0.0)));
 
-    BVHTreeNode node;
-    if (!fetchBVHTreeNode(0, node)) {
-        return hit;
-    }
+    // use BVHTree?
 
-    int node_index = 0;
-    int stop_infinite_loop = 100;
-    while (stop_infinite_loop-- > 0) {
-        if (fetchBVHTreeNode(node_index, node)) {
-            if (node.bvh_tree_node_type == BVHTreeNodeTypeLeaf) {
-                for (int i = node.t_index; i < node.t_index + node.n_triangles; i++) {
-                    int t_index = fetchBVHTreeLeafTriangleIndex(i);
-                    Triangle obj = fetchTriangle(t_index);
-                    HitRecord r = Triangle_intersect(obj, ray);
+    // BVHTreeNode node;
+    // if (!fetchBVHTreeNode(0, node)) {
+    //     return hit;
+    // }
 
-                    if (r.hit) {
-                        float t = length(r.point - ray.origin);
-                        if (t < dist) {
-                            dist = t;
-                            hit.index = t_index;
-                            hit.type = TTriangle;
-                            hit.r = r;
+    // int node_index = 0;
+    // int stop_infinite_loop = 100;
+    // while (stop_infinite_loop-- > 0) {
+    //     if (fetchBVHTreeNode(node_index, node)) {
+    //         if (node.bvh_tree_node_type == BVHTreeNodeTypeLeaf) {
+    //             for (int i = node.t_index; i < node.t_index + node.n_triangles; i++) {
+    //                 int t_index = fetchBVHTreeLeafTriangleIndex(i);
+    //                 Triangle obj = fetchTriangle(t_index);
+    //                 HitRecord r = Triangle_intersect(obj, ray);
 
-                            continue;
-                        }
-                    }
+    //                 if (r.hit) {
+    //                     float t = length(r.point - ray.origin);
+    //                     if (t < dist) {
+    //                         dist = t;
+    //                         hit.index = t_index;
+    //                         hit.type = TTriangle;
+    //                         hit.r = r;
+
+    //                         continue;
+    //                     }
+    //                 }
+    //             }
+
+    //             return hit;
+    //         } else if (node.bvh_tree_node_type == BVHTreeNodeTypeNode) {
+    //             if (!AABB_intersect(node.aabb, ray)) {
+    //                 return hit;
+    //             }
+
+    //             BVHTreeNode left;
+    //             fetchBVHTreeNode(node.left, left);
+    //             BVHTreeNode right;
+    //             fetchBVHTreeNode(node.right, right);
+
+    //             if (AABB_intersect(left.aabb, ray)) {
+    //                 node_index = node.left;
+    //             } else if (AABB_intersect(right.aabb, ray)) {
+    //                 node_index = node.right;
+    //             } else {
+    //                 hit.r.normal = vec3(1, 0, 1);
+    //                 return hit;
+    //             }
+
+    //             continue;
+    //         }
+    //     } else {
+    //         hit.r.normal = vec3(1, 0, 1);
+    //         return hit;
+    //     }
+    // }
+
+    for (int i = 0; i < n_materials; i++) {
+        Material material = fetchMaterial(i);
+        if (!AABB_intersect(material.aabb, ray)) {
+            continue;
+        }
+
+        for (int j = material.t_index_min; j < material.t_index_max; j++) {
+            Triangle obj = fetchTriangle(j);
+            HitRecord r = Triangle_intersect(obj, ray);
+
+            if (r.hit) {
+                float t = length(r.point - ray.origin);
+                if (t < dist) {
+                    dist = t;
+                    hit.index = j;
+                    hit.type = TTriangle;
+                    hit.r = r;
                 }
-
-                return hit;
-            } else if (node.bvh_tree_node_type == BVHTreeNodeTypeNode) {
-                if (!AABB_intersect(node.aabb, ray)) {
-                    return hit;
-                }
-
-                BVHTreeNode left;
-                fetchBVHTreeNode(node.left, left);
-                BVHTreeNode right;
-                fetchBVHTreeNode(node.right, right);
-
-                if (AABB_intersect(left.aabb, ray)) {
-                    node_index = node.left;
-                } else if (AABB_intersect(right.aabb, ray)) {
-                    node_index = node.right;
-                } else {
-                    hit.r.normal = vec3(1, 0, 1);
-                    return hit;
-                }
-
-                continue;
             }
-        } else {
-            hit.r.normal = vec3(1, 0, 1);
-            return hit;
         }
     }
 
