@@ -254,10 +254,8 @@ bool fetchBVHTreeNode(int index, inout BVHTreeNode node) {
     return true;
 }
 
-Triangle fetchBVHTreeLeafTriangleIndex(int cursor) {
-    int triangle = int(texture(bvh_tree_texture, getNormalizedXYCoord(cursor, textureSize)).x);
-
-    return fetchTriangle(triangle);
+int fetchBVHTreeLeafTriangleIndex(int cursor) {
+    return int(texture(bvh_tree_texture, getNormalizedXYCoord(cursor, textureSize)).x);
 }
 
 const uint TTriangle = 0u;
@@ -283,14 +281,15 @@ HitInScene intersect(Ray ray){
         if (fetchBVHTreeNode(node_index, node)) {
             if (node.bvh_tree_node_type == BVHTreeNodeTypeLeaf) {
                 for (int i = node.t_index; i < node.t_index + node.n_triangles; i++) {
-                    Triangle obj = fetchBVHTreeLeafTriangleIndex(i);
+                    int t_index = fetchBVHTreeLeafTriangleIndex(i);
+                    Triangle obj = fetchTriangle(t_index);
                     HitRecord r = Triangle_intersect(obj, ray);
 
                     if (r.hit) {
                         float t = length(r.point - ray.origin);
                         if (t < dist) {
                             dist = t;
-                            hit.index = i;
+                            hit.index = t_index;
                             hit.type = TTriangle;
                             hit.r = r;
 
