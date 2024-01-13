@@ -111,23 +111,28 @@ HitRecord Triangle_intersect(Triangle self, Ray ray) {
     return HitRecord(true, normalize(cross(self.edge1, self.edge2)), self.vertex + self.edge1 * u + self.edge2 * v);
 }
 
+vec2 getNormalizedXYCoord(int index, int textureSize) {
+    int x = index % textureSize;
+    int y = index / textureSize;
+
+    return vec2(float(x) / float(textureSize), float(y) / float(textureSize));
+}
+
 uniform int n_triangles;
 uniform int n_materials;
 
 const int textureSize = 1024;
 Triangle fetchTriangle(int index) {
     int size = 24 / 4;
-    int x = (index * size) % textureSize;
-    int y = (index * size) / textureSize;
 
-    vec3 vertex = texture(triangles_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).xyz;
-    float material_id = texture(triangles_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).w;
-    vec3 edge1 = texture(triangles_texture, vec2(float(x + 1) / float(textureSize), float(y) / float(textureSize))).xyz;
-    vec3 edge2 = texture(triangles_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).xyz;
-    float smooth_normal = texture(triangles_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).w;
-    vec3 normal0 = texture(triangles_texture, vec2(float(x + 3) / float(textureSize), float(y) / float(textureSize))).xyz;
-    vec3 normal1 = texture(triangles_texture, vec2(float(x + 4) / float(textureSize), float(y) / float(textureSize))).xyz;
-    vec3 normal2 = texture(triangles_texture, vec2(float(x + 5) / float(textureSize), float(y) / float(textureSize))).xyz;
+    vec3 vertex = texture(triangles_texture, getNormalizedXYCoord(index * size, textureSize)).xyz;
+    float material_id = texture(triangles_texture, getNormalizedXYCoord(index * size, textureSize)).w;
+    vec3 edge1 = texture(triangles_texture, getNormalizedXYCoord(index * size + 1, textureSize)).xyz;
+    vec3 edge2 = texture(triangles_texture, getNormalizedXYCoord(index * size + 2, textureSize)).xyz;
+    float smooth_normal = texture(triangles_texture, getNormalizedXYCoord(index * size + 2, textureSize)).w;
+    vec3 normal0 = texture(triangles_texture, getNormalizedXYCoord(index * size + 3, textureSize)).xyz;
+    vec3 normal1 = texture(triangles_texture, getNormalizedXYCoord(index * size + 4, textureSize)).xyz;
+    vec3 normal2 = texture(triangles_texture, getNormalizedXYCoord(index * size + 5, textureSize)).xyz;
 
     return Triangle(vertex, edge1, edge2, normal0, normal1, normal2, int(material_id), smooth_normal > 0.0);
 }
@@ -200,15 +205,14 @@ Material fetchMaterial(int index) {
     int x = (index * size) % textureSize;
     int y = (index * size) / textureSize;
 
-    // FIXME: これだと、x + kがちょうど次の行に進む時におかしくなる
-    vec3 color = texture(material_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).xyz;
-    vec3 emission = texture(material_texture, vec2(float(x + 1) / float(textureSize), float(y) / float(textureSize))).xyz;
-    vec3 specular = texture(material_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).xyz;
-    float specular_weight = texture(material_texture, vec2(float(x + 2) / float(textureSize), float(y) / float(textureSize))).w;
-    vec3 minv = texture(material_texture, vec2(float(x + 3) / float(textureSize), float(y) / float(textureSize))).xyz;
-    int t_index_min = int(texture(material_texture, vec2(float(x + 3) / float(textureSize), float(y) / float(textureSize))).w);
-    vec3 maxv = texture(material_texture, vec2(float(x + 4) / float(textureSize), float(y) / float(textureSize))).xyz;
-    int t_index_max = int(texture(material_texture, vec2(float(x + 4) / float(textureSize), float(y) / float(textureSize))).w);
+    vec3 color = texture(material_texture, getNormalizedXYCoord(index * size, textureSize)).xyz;
+    vec3 emission = texture(material_texture, getNormalizedXYCoord(index * size + 1, textureSize)).xyz;
+    vec3 specular = texture(material_texture, getNormalizedXYCoord(index * size + 2, textureSize)).xyz;
+    float specular_weight = texture(material_texture, getNormalizedXYCoord(index * size + 2, textureSize)).w;
+    vec3 minv = texture(material_texture, getNormalizedXYCoord(index * size + 3, textureSize)).xyz;
+    int t_index_min = int(texture(material_texture, getNormalizedXYCoord(index * size + 3, textureSize)).w);
+    vec3 maxv = texture(material_texture, getNormalizedXYCoord(index * size + 4, textureSize)).xyz;
+    int t_index_max = int(texture(material_texture, getNormalizedXYCoord(index * size + 4, textureSize)).w);
 
     return Material(index, color, emission, specular, specular_weight, AABB(minv, maxv), t_index_min, t_index_max);
 }
@@ -228,21 +232,15 @@ const uint BVHTreeNodeTypeNode = 0u;
 const uint BVHTreeNodeTypeLeaf = 1u;
 
 bool fetchBVHTreeNode(int index, inout BVHTreeNode node) {
-    int x = index % textureSize;
-    int y = index / textureSize;
-
-    int cursor = int(texture(bvh_tree_texture, vec2(float(x) / float(textureSize), float(y) / float(textureSize))).x);
+    int cursor = int(texture(bvh_tree_texture, getNormalizedXYCoord(index, textureSize)).x);
     if (cursor == 0) {
         return false;
     }
 
-    int cx = cursor % textureSize;
-    int cy = cursor / textureSize;
-
-    vec3 minv = texture(bvh_tree_texture, vec2(float(cx) / float(textureSize), float(cy) / float(textureSize))).xyz;
-    uint bvh_tree_node_type = uint(texture(bvh_tree_texture, vec2(float(cx) / float(textureSize), float(cy) / float(textureSize))).w);
-    vec3 maxv = texture(bvh_tree_texture, vec2(float(cx + 1) / float(textureSize), float(cy) / float(textureSize))).xyz;
-    int n_triangles = int(texture(bvh_tree_texture, vec2(float(cx + 1) / float(textureSize), float(cy) / float(textureSize))).w);
+    vec3 minv = texture(bvh_tree_texture, getNormalizedXYCoord(cursor, textureSize)).xyz;
+    uint bvh_tree_node_type = uint(texture(bvh_tree_texture, getNormalizedXYCoord(cursor, textureSize)).w);
+    vec3 maxv = texture(bvh_tree_texture, getNormalizedXYCoord(cursor + 1, textureSize)).xyz;
+    int n_triangles = int(texture(bvh_tree_texture, getNormalizedXYCoord(cursor + 1, textureSize)).w);
 
     node = BVHTreeNode(
         bvh_tree_node_type,
@@ -254,6 +252,12 @@ bool fetchBVHTreeNode(int index, inout BVHTreeNode node) {
     );
 
     return true;
+}
+
+Triangle fetchBVHTreeLeafTriangleIndex(int cursor) {
+    int triangle = int(texture(bvh_tree_texture, getNormalizedXYCoord(cursor, textureSize)).x);
+
+    return fetchTriangle(triangle);
 }
 
 const uint TTriangle = 0u;
@@ -279,7 +283,7 @@ HitInScene intersect(Ray ray){
         if (fetchBVHTreeNode(node_index, node)) {
             if (node.bvh_tree_node_type == BVHTreeNodeTypeLeaf) {
                 for (int i = node.t_index; i < node.t_index + node.n_triangles; i++) {
-                    Triangle obj = fetchTriangle(i);
+                    Triangle obj = fetchBVHTreeLeafTriangleIndex(i);
                     HitRecord r = Triangle_intersect(obj, ray);
 
                     if (r.hit) {
@@ -322,33 +326,6 @@ HitInScene intersect(Ray ray){
             return hit;
         }
     }
-
-    // for(int i = 0; i < n_materials; i++){
-    //     Material m = fetchMaterial(i);
-    //     if (!AABB_intersect(m.aabb, ray)) {
-    //         continue;
-    //     }
-
-    //     for(int i = m.t_index_min; i < m.t_index_max; i++){
-    //         Triangle obj = fetchTriangle(i);
-    //         if (obj.material_id != m.id) {
-    //             continue;
-    //         }
-    //         HitRecord r = Triangle_intersect(obj, ray);
-
-    //         if (r.hit) {
-    //             float t = length(r.point - ray.origin);
-    //             if (t < dist) {
-    //                 dist = t;
-    //                 hit.index = i;
-    //                 hit.type = TTriangle;
-    //                 hit.r = r;
-
-    //                 continue;
-    //             }
-    //         }
-    //     }
-    // }
 
     return hit;
 }
