@@ -429,6 +429,10 @@ struct Camera {
     float screen_dist;
 };
 
+float tentFilter(float x) {
+	return (x < 0.5) ? sqrt(2.0 * x) - 1.0 : 1.0 - sqrt(2.0 - (2.0 * x));
+}
+
 void main(void){
     Camera camera = Camera(camera_position, normalize(camera_up), normalize(camera_direction), screen_dist);
     float screen_width = 3.0;
@@ -441,7 +445,8 @@ void main(void){
     vec3 color = vec3(0.0);
     for (int i = 0; i < spp; i++) {
         vec2 dp = rand3(vec3(gl_FragCoord.xy + vec2(float(iterations)), float(i))).xy;
-        vec2 p = (((gl_FragCoord.xy + dp - vec2(0.5)) * 2.0) - resolution.xy) / min(resolution.x, resolution.y);
+        vec2 dp2 = vec2(tentFilter(dp.x), tentFilter(dp.y));
+        vec2 p = (((gl_FragCoord.xy + dp2) * 2.0) - resolution.xy) / min(resolution.x, resolution.y);
 
         vec3 screen_p = screen_origin + screen_x * p.x + screen_y * p.y;
         Ray ray = Ray(camera.origin, normalize(screen_p - camera.origin));
