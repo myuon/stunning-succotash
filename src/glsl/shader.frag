@@ -11,6 +11,9 @@ uniform vec3 camera_up;
 uniform float screen_dist;
 uniform int spp;
 uniform int render_type;
+uniform sampler2D triangles_texture;
+uniform sampler2D material_texture;
+uniform sampler2D bvh_tree_texture;
 
 const int RenderTypeRender = 0;
 const int RenderTypeColor = 1;
@@ -20,8 +23,7 @@ in vec2 v_texcoord;
 out vec4 outColor;
 
 const float PI = 3.14159265;
-const float angle = 60.0;
-const float kEPS = 1e-2;
+const float kEPS = 1e-6;
 
 highp float rand(vec2 co){
     highp float a = 12.9898;
@@ -70,22 +72,15 @@ struct Ray {
     vec3 direction;
 };
 
-const uint Diffuse = 0u;
-const uint Specular = 1u;
-const uint Refractive = 2u;
-
-struct Sphere {
-    vec3 center;
-    float radius;
-    vec3 emission;
-    vec3 color;
-    uint reflection_type;
-};
-
 struct Triangle {
     vec3 vertex;
     vec3 edge1;
     vec3 edge2;
+    vec3 normal0;
+    vec3 normal1;
+    vec3 normal2;
+    int material_id;
+    bool smooth_normal;
 };
 
 float det(vec3 a, vec3 b, vec3 c) {
@@ -108,53 +103,160 @@ HitRecord Triangle_intersect(Triangle self, Ray ray) {
         return HitRecord(false, vec3(0.0), vec3(0.0));
     }
 
-    return HitRecord(true, normalize(cross(self.edge1, self.edge2)), ray.origin + ray.direction * t);
-}
-
-struct Rectangle {
-    Triangle[2] mesh;
-    vec3 emission;
-    vec3 color;
-    uint reflection_type;
-};
-
-Rectangle Rectangle_new(vec3[4] points, vec3 emission, vec3 color, uint reflection_type) {
-    Triangle[2] mesh = Triangle[](
-        Triangle(points[0], points[1] - points[0], points[2] - points[0]),
-        Triangle(points[0], points[3] - points[0], points[2] - points[0])
-    );
-
-    return Rectangle(mesh, emission, color, reflection_type);
-}
-
-HitRecord Rectangle_intersect(Rectangle self, Ray ray) {
-    for (int i = 0; i < self.mesh.length(); i++) {
-        HitRecord hit = Triangle_intersect(self.mesh[i], ray);
-        if (hit.hit) {
-            return hit;
-        }
+    if (self.smooth_normal) {
+        vec3 normal = normalize(self.normal0 * (1.0 - u - v) + self.normal1 * u + self.normal2 * v);
+        return HitRecord(true, normal, self.vertex + self.edge1 * u + self.edge2 * v);
     }
 
-    return HitRecord(false, vec3(0.0), vec3(0.0));
+    return HitRecord(true, normalize(cross(self.edge1, self.edge2)), self.vertex + self.edge1 * u + self.edge2 * v);
 }
 
-// SCENE
-const int MAX_N_SPHERES = 100;
-uniform int n_spheres;
+vec2 getNormalizedXYCoord(int index, int textureSize) {
+    int x = index % textureSize;
+    int y = index / textureSize;
 
-layout(std140) uniform Spheres {
-    Sphere spheres[MAX_N_SPHERES];
+    return vec2(float(x) / float(textureSize), float(y) / float(textureSize));
+}
+
+uniform int n_triangles;
+uniform int n_materials;
+
+const int textureSize = 1024;
+Triangle fetchTriangle(int index) {
+    int size = 24 / 4;
+
+    vec3 vertex = texture(triangles_texture, getNormalizedXYCoord(index * size, textureSize)).xyz;
+    float material_id = texture(triangles_texture, getNormalizedXYCoord(index * size, textureSize)).w;
+    vec3 edge1 = texture(triangles_texture, getNormalizedXYCoord(index * size + 1, textureSize)).xyz;
+    vec3 edge2 = texture(triangles_texture, getNormalizedXYCoord(index * size + 2, textureSize)).xyz;
+    float smooth_normal = texture(triangles_texture, getNormalizedXYCoord(index * size + 2, textureSize)).w;
+    vec3 normal0 = texture(triangles_texture, getNormalizedXYCoord(index * size + 3, textureSize)).xyz;
+    vec3 normal1 = texture(triangles_texture, getNormalizedXYCoord(index * size + 4, textureSize)).xyz;
+    vec3 normal2 = texture(triangles_texture, getNormalizedXYCoord(index * size + 5, textureSize)).xyz;
+
+    return Triangle(vertex, edge1, edge2, normal0, normal1, normal2, int(material_id), smooth_normal > 0.0);
+}
+
+struct AABB {
+    vec3 minv;
+    vec3 maxv;
 };
 
-const int MAX_N_RECTANGLES = 100;
-uniform int n_rectangles;
+bool AABB_intersect(AABB self, Ray ray) {
+    float tmin = (self.minv.x - ray.origin.x) / ray.direction.x;
+    float tmax = (self.maxv.x - ray.origin.x) / ray.direction.x;
 
-layout(std140) uniform Rectangles {
-    Rectangle rectangles[MAX_N_RECTANGLES];
+    if (tmin > tmax) {
+        float tmp = tmin;
+        tmin = tmax;
+        tmax = tmp;
+    }
+
+    float tymin = (self.minv.y - ray.origin.y) / ray.direction.y;
+    float tymax = (self.maxv.y - ray.origin.y) / ray.direction.y;
+
+    if (tymin > tymax) {
+        float tmp = tymin;
+        tymin = tymax;
+        tymax = tmp;
+    }
+
+    if ((tmin > tymax) || (tymin > tmax)) {
+        return false;
+    }
+
+    if (tymin > tmin) {
+        tmin = tymin;
+    }
+
+    if (tymax < tmax) {
+        tmax = tymax;
+    }
+
+    float tzmin = (self.minv.z - ray.origin.z) / ray.direction.z;
+    float tzmax = (self.maxv.z - ray.origin.z) / ray.direction.z;
+
+    if (tzmin > tzmax) {
+        float tmp = tzmin;
+        tzmin = tzmax;
+        tzmax = tmp;
+    }
+
+    if ((tmin > tzmax) || (tzmin > tmax)) {
+        return false;
+    }
+
+    return true;
+}
+
+struct Material {
+    int id;
+    vec3 color;
+    vec3 emission;
+    vec3 specular;
+    float specular_weight;
+    AABB aabb;
+    int t_index_min;
+    int t_index_max;
 };
 
-const uint TSphere = 0u;
-const uint TRectangle = 1u;
+Material fetchMaterial(int index) {
+    int size = 20 / 4;
+    int x = (index * size) % textureSize;
+    int y = (index * size) / textureSize;
+
+    vec3 color = texture(material_texture, getNormalizedXYCoord(index * size, textureSize)).xyz;
+    vec3 emission = texture(material_texture, getNormalizedXYCoord(index * size + 1, textureSize)).xyz;
+    vec3 specular = texture(material_texture, getNormalizedXYCoord(index * size + 2, textureSize)).xyz;
+    float specular_weight = texture(material_texture, getNormalizedXYCoord(index * size + 2, textureSize)).w;
+    vec3 minv = texture(material_texture, getNormalizedXYCoord(index * size + 3, textureSize)).xyz;
+    int t_index_min = int(texture(material_texture, getNormalizedXYCoord(index * size + 3, textureSize)).w);
+    vec3 maxv = texture(material_texture, getNormalizedXYCoord(index * size + 4, textureSize)).xyz;
+    int t_index_max = int(texture(material_texture, getNormalizedXYCoord(index * size + 4, textureSize)).w);
+
+    return Material(index, color, emission, specular, specular_weight, AABB(minv, maxv), t_index_min, t_index_max);
+}
+
+struct BVHTreeNode {
+    uint bvh_tree_node_type;
+    AABB aabb;
+    int left;
+    int right;
+    int n_triangles;
+    int t_index;
+};
+
+const uint BVHTreeNodeTypeNode = 0u;
+const uint BVHTreeNodeTypeLeaf = 1u;
+
+bool fetchBVHTreeNode(int index, inout BVHTreeNode node) {
+    int cursor = int(texture(bvh_tree_texture, getNormalizedXYCoord(index, textureSize)).x);
+    if (cursor == 0) {
+        return false;
+    }
+
+    vec3 minv = texture(bvh_tree_texture, getNormalizedXYCoord(cursor, textureSize)).xyz;
+    uint bvh_tree_node_type = uint(texture(bvh_tree_texture, getNormalizedXYCoord(cursor, textureSize)).w);
+    vec3 maxv = texture(bvh_tree_texture, getNormalizedXYCoord(cursor + 1, textureSize)).xyz;
+    int n_triangles = int(texture(bvh_tree_texture, getNormalizedXYCoord(cursor + 1, textureSize)).w);
+
+    node = BVHTreeNode(
+        bvh_tree_node_type,
+        AABB(minv, maxv),
+        index * 2 + 1,
+        index * 2 + 2,
+        n_triangles,
+        cursor
+    );
+
+    return true;
+}
+
+int fetchBVHTreeLeafTriangleIndex(int cursor) {
+    return int(texture(bvh_tree_texture, getNormalizedXYCoord(cursor, textureSize)).x);
+}
+
+const uint TTriangle = 0u;
 
 struct HitInScene {
     int index;
@@ -164,61 +266,127 @@ struct HitInScene {
 
 HitInScene intersect(Ray ray){
     float dist = 1000000.0;
-    HitInScene hit = HitInScene(-1, TSphere, HitRecord(false, vec3(0.0), vec3(0.0)));
-    for(int i = 0; i < n_spheres; i++){
-        Sphere obj = spheres[i];
-        float b = dot(ray.direction, obj.center - ray.origin);
-        float c = dot(obj.center - ray.origin, obj.center - ray.origin) - obj.radius * obj.radius;
-        float d = b * b - c;
-        if (d < 0.0) {
+    HitInScene hit = HitInScene(-1, TTriangle, HitRecord(false, vec3(0.0), vec3(0.0)));
+
+    // use BVHTree?
+
+    // BVHTreeNode node;
+    // if (!fetchBVHTreeNode(0, node)) {
+    //     return hit;
+    // }
+
+    // int node_index = 0;
+    // int stop_infinite_loop = 100;
+    // while (stop_infinite_loop-- > 0) {
+    //     if (fetchBVHTreeNode(node_index, node)) {
+    //         if (node.bvh_tree_node_type == BVHTreeNodeTypeLeaf) {
+    //             for (int i = node.t_index; i < node.t_index + node.n_triangles; i++) {
+    //                 int t_index = fetchBVHTreeLeafTriangleIndex(i);
+    //                 Triangle obj = fetchTriangle(t_index);
+    //                 HitRecord r = Triangle_intersect(obj, ray);
+
+    //                 if (r.hit) {
+    //                     float t = length(r.point - ray.origin);
+    //                     if (t < dist) {
+    //                         dist = t;
+    //                         hit.index = t_index;
+    //                         hit.type = TTriangle;
+    //                         hit.r = r;
+
+    //                         continue;
+    //                     }
+    //                 }
+    //             }
+
+    //             return hit;
+    //         } else if (node.bvh_tree_node_type == BVHTreeNodeTypeNode) {
+    //             if (!AABB_intersect(node.aabb, ray)) {
+    //                 return hit;
+    //             }
+
+    //             BVHTreeNode left;
+    //             fetchBVHTreeNode(node.left, left);
+    //             BVHTreeNode right;
+    //             fetchBVHTreeNode(node.right, right);
+
+    //             if (AABB_intersect(left.aabb, ray)) {
+    //                 node_index = node.left;
+    //             } else if (AABB_intersect(right.aabb, ray)) {
+    //                 node_index = node.right;
+    //             } else {
+    //                 hit.r.normal = vec3(1, 0, 1);
+    //                 return hit;
+    //             }
+
+    //             continue;
+    //         }
+    //     } else {
+    //         hit.r.normal = vec3(1, 0, 1);
+    //         return hit;
+    //     }
+    // }
+
+    for (int i = 0; i < n_materials; i++) {
+        Material material = fetchMaterial(i);
+        if (!AABB_intersect(material.aabb, ray)) {
             continue;
         }
 
-        float t1 = b - sqrt(d);
-        float t2 = b + sqrt(d);
-        if (t1 < kEPS && t2 < kEPS) {
-            continue;
-        }
+        for (int j = material.t_index_min; j < material.t_index_max; j++) {
+            Triangle obj = fetchTriangle(j);
+            HitRecord r = Triangle_intersect(obj, ray);
 
-        if(t1 > kEPS && t1 < dist){
-            dist = t1;
-            hit.index = i;
-            hit.type = TSphere;
-            hit.r.hit = true;
-            hit.r.point = ray.origin + ray.direction * t1;
-            hit.r.normal = normalize(hit.r.point - obj.center);
-            continue;
-        }
-
-        if(t2 > kEPS && t2 < dist){
-            dist = t2;
-            hit.index = i;
-            hit.type = TSphere;
-            hit.r.hit = true;
-            hit.r.point = ray.origin + ray.direction * t2;
-            hit.r.normal = normalize(hit.r.point - obj.center);
-
-            continue;
-        }
-    }
-    for(int i = 0; i < n_rectangles; i++){
-        Rectangle obj = rectangles[i];
-        HitRecord r = Rectangle_intersect(obj, ray);
-
-        if (r.hit) {
-            float t = length(r.point - ray.origin);
-            if (t < dist) {
-                dist = t;
-                hit.index = i;
-                hit.type = TRectangle;
-                hit.r = r;
-
-                continue;
+            if (r.hit) {
+                float t = length(r.point - ray.origin);
+                if (t < dist) {
+                    dist = t;
+                    hit.index = j;
+                    hit.type = TTriangle;
+                    hit.r = r;
+                }
             }
         }
     }
 
     return hit;
+}
+
+void next_ray(HitInScene hit, float seed, inout Ray ray, out vec3 weight_delta) {
+    vec3 object_color = vec3(1.0);
+    if (hit.type == TTriangle) {
+        Triangle t = fetchTriangle(hit.index);
+        Material m = fetchMaterial(t.material_id);
+        object_color = m.color;
+    } else {
+        object_color = vec3(1, 0, 1);
+    }
+
+    vec3 orienting_normal = dot(hit.r.normal, ray.direction) < 0.0 ? hit.r.normal : -hit.r.normal;
+    weight_delta = object_color;
+    ray.origin = hit.r.point + orienting_normal * kEPS;
+
+    if (hit.type == TTriangle) {
+        Triangle t = fetchTriangle(hit.index);
+        Material m = fetchMaterial(t.material_id);
+
+        if (m.specular_weight > 0.0) {
+            float specular_prob = m.specular_weight / (m.specular_weight + 1.0);
+            float r = rand(vec2(seed, m.specular_weight) + hit.r.point.xy);
+            if (r < specular_prob) {
+                ray.direction = reflect(ray.direction, orienting_normal);
+
+                weight_delta = m.specular / specular_prob;
+            } else {
+                ray.direction = randOnHemisphere(orienting_normal, seed);
+
+                weight_delta = object_color / (1.0 - specular_prob);
+            }
+        } else {
+            ray.direction = randOnHemisphere(orienting_normal, seed);
+        }
+    } else {
+        ray.direction = randOnHemisphere(orienting_normal, seed);
+    }
 }
 
 vec3 raytrace(Ray ray) {
@@ -232,12 +400,17 @@ vec3 raytrace(Ray ray) {
             return color;
         }
 
+        vec3 object_color = vec3(1.0);
+        if (hit.type == TTriangle) {
+            Triangle t = fetchTriangle(hit.index);
+            Material m = fetchMaterial(t.material_id);
+            object_color = m.color;
+        } else {
+            object_color = vec3(1, 0, 1);
+        }
+
         if (render_type == RenderTypeColor && hit.index != -1) {
-            if (hit.type == TSphere) {
-                return spheres[hit.index].color;
-            } else if (hit.type == TRectangle) {
-                return rectangles[hit.index].color;
-            }
+            return object_color;
         }
 
         vec3 orienting_normal = dot(hit.r.normal, ray.direction) < 0.0 ? hit.r.normal : -hit.r.normal;
@@ -246,10 +419,10 @@ vec3 raytrace(Ray ray) {
             return orienting_normal + vec3(0.25);
         }
 
-        if (hit.type == TSphere) {
-            color += spheres[hit.index].emission * weight;
-        } else if (hit.type == TRectangle) {
-            color += rectangles[hit.index].emission * weight;
+        if (hit.type == TTriangle) {
+            Triangle t = fetchTriangle(hit.index);
+            Material m = fetchMaterial(t.material_id);
+            color += m.emission * weight;
         }
 
         float russian_roulette_threshold = 0.5;
@@ -266,13 +439,9 @@ vec3 raytrace(Ray ray) {
             return color;
         }
 
-        ray.direction = randOnHemisphere(orienting_normal, seed);
-        ray.origin = hit.r.point + ray.direction * kEPS;
-        if (hit.type == TSphere) {
-            weight *= spheres[hit.index].color * 1.0 / russian_roulette_threshold;
-        } else if (hit.type == TRectangle) {
-            weight *= rectangles[hit.index].color * 1.0 / russian_roulette_threshold;
-        }
+        vec3 weight_delta = vec3(1.0);
+        next_ray(hit, seed, ray, weight_delta);
+        weight *= weight_delta / russian_roulette_threshold;
         count++;
     }
 }
@@ -283,6 +452,10 @@ struct Camera {
     vec3 direction;
     float screen_dist;
 };
+
+float tentFilter(float x) {
+	return (x < 0.5) ? sqrt(2.0 * x) - 1.0 : 1.0 - sqrt(2.0 - (2.0 * x));
+}
 
 void main(void){
     Camera camera = Camera(camera_position, normalize(camera_up), normalize(camera_direction), screen_dist);
@@ -296,7 +469,8 @@ void main(void){
     vec3 color = vec3(0.0);
     for (int i = 0; i < spp; i++) {
         vec2 dp = rand3(vec3(gl_FragCoord.xy + vec2(float(iterations)), float(i))).xy;
-        vec2 p = (((gl_FragCoord.xy + dp - vec2(0.5)) * 2.0) - resolution.xy) / min(resolution.x, resolution.y);
+        vec2 dp2 = vec2(tentFilter(dp.x), tentFilter(dp.y));
+        vec2 p = (((gl_FragCoord.xy + dp2) * 2.0) - resolution.xy) / min(resolution.x, resolution.y);
 
         vec3 screen_p = screen_origin + screen_x * p.x + screen_y * p.y;
         Ray ray = Ray(camera.origin, normalize(screen_p - camera.origin));
