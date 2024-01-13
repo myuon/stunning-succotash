@@ -226,8 +226,6 @@ struct BVHTreeNode {
     int t_index;
 };
 
-uniform int n_bvh_tree_nodes;
-
 const uint BVHTreeNodeTypeNode = 0u;
 const uint BVHTreeNodeTypeLeaf = 1u;
 

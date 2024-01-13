@@ -101,12 +101,6 @@ const constructBVHTree = (shapes: BVHShape[], depth: number): BVHTree => {
     return 2 * (size[0] * size[1] + size[1] * size[2] + size[2] * size[0]);
   };
   const appendAABB = (aabb: [vec3, vec3], shape: BVHShape) => {
-    const area = vec3.create();
-    vec3.cross(area, shape.edge1, shape.edge2);
-    if (vec3.length(area) > 0.5) {
-      return aabb;
-    }
-
     vec3.min(aabb[0], aabb[0], shape.vertex);
     vec3.max(aabb[1], aabb[1], shape.vertex);
 
@@ -831,7 +825,6 @@ const loadScene = async (
     }
   };
   serializeBVHTree(bvhTree, 0, (getMaxTreeIndex(bvhTree, 0) + 1) * 4);
-  console.log(bvhTreeTextureData);
 
   gl.activeTexture(gl.TEXTURE3);
   const bvhTreeTexture = gl.createTexture()!;
@@ -1015,7 +1008,6 @@ const main = async () => {
     triangles,
     materials,
     bvhTreeTexture,
-    bvhTree,
   } = await loadScene(value.scene, value.renderBoundingBoxes, gl)!;
 
   const stats = new Stats();
@@ -1075,7 +1067,6 @@ const main = async () => {
     triangles = resp.triangles;
     materials = resp.materials;
     bvhTreeTexture = resp.bvhTreeTexture;
-    bvhTree = resp.bvhTree;
 
     reset();
   });
@@ -1090,7 +1081,6 @@ const main = async () => {
     triangles = resp.triangles;
     materials = resp.materials;
     bvhTreeTexture = resp.bvhTreeTexture;
-    bvhTree = resp.bvhTree;
 
     reset();
   });
@@ -1348,10 +1338,6 @@ const main = async () => {
       gl.uniform1i(
         programLocations.render_type,
         renderTypes.indexOf(value.renderType)
-      );
-      gl.uniform1i(
-        programLocations.n_bvh_tree_nodes,
-        getMaxTreeIndex(bvhTree, 0)
       );
 
       gl.bindVertexArray(shaderVao);
