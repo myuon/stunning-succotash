@@ -88,6 +88,16 @@ float det(vec3 a, vec3 b, vec3 c) {
         - a.z * b.y * c.x - a.y * b.x * c.z - a.x * b.z * c.y;
 }
 
+vec3 Triangle_get_normal(Triangle self, float u, float v) {
+    if (self.smooth_normal) {
+        vec3 normal = normalize(self.normal0 * (1.0 - u - v) + self.normal1 * u + self.normal2 * v);
+
+        return normal;
+    }
+
+    return normalize(cross(self.edge1, self.edge2));
+}
+
 bool Triangle_intersect(Triangle self, Ray ray, inout HitRecord hit) {
     float d = det(self.edge1, self.edge2, -ray.direction);
     if (abs(d) < kEPS) {
@@ -103,16 +113,7 @@ bool Triangle_intersect(Triangle self, Ray ray, inout HitRecord hit) {
         return false;
     }
 
-    if (self.smooth_normal) {
-        vec3 normal = normalize(self.normal0 * (1.0 - u - v) + self.normal1 * u + self.normal2 * v);
-
-        hit.normal = normal;
-        hit.point = self.vertex + self.edge1 * u + self.edge2 * v;
-
-        return true;
-    }
-
-    hit.normal = normalize(cross(self.edge1, self.edge2));
+    hit.normal = Triangle_get_normal(self, u, v);
     hit.point = self.vertex + self.edge1 * u + self.edge2 * v;
 
     return true;
@@ -358,7 +359,7 @@ HitInScene intersect(Ray ray){
     return hit;
 }
 
-void next_ray(HitInScene hit, float seed, inout Ray ray, out vec3 weight_delta) {
+void next_ray(HitInScene hit, float seed, inout Ray ray, bool is_specular) {
     vec3 object_color = vec3(1.0);
     if (hit.type == TTriangle) {
         Triangle t = fetchTriangle(hit.index);
@@ -369,31 +370,72 @@ void next_ray(HitInScene hit, float seed, inout Ray ray, out vec3 weight_delta) 
     }
 
     vec3 orienting_normal = dot(hit.r.normal, ray.direction) < 0.0 ? hit.r.normal : -hit.r.normal;
-    weight_delta = object_color;
     ray.origin = hit.r.point + orienting_normal * kEPS;
 
     if (hit.type == TTriangle) {
         Triangle t = fetchTriangle(hit.index);
         Material m = fetchMaterial(t.material_id);
 
-        if (m.specular_weight > 0.0) {
-            float specular_prob = m.specular_weight / (m.specular_weight + 1.0);
-            float r = rand(vec2(seed, m.specular_weight) + hit.r.point.xy);
-            if (r < specular_prob) {
-                ray.direction = reflect(ray.direction, orienting_normal);
-
-                weight_delta = m.specular / specular_prob;
-            } else {
-                ray.direction = randOnHemisphere(orienting_normal, seed);
-
-                weight_delta = object_color / (1.0 - specular_prob);
-            }
+        if (is_specular) {
+            ray.direction = reflect(ray.direction, orienting_normal);
         } else {
             ray.direction = randOnHemisphere(orienting_normal, seed);
         }
-    } else {
-        ray.direction = randOnHemisphere(orienting_normal, seed);
     }
+}
+
+struct HitOnLight {
+    vec3 point;
+    vec3 normal;
+    float area_prob;
+    int index;
+    vec3 emission;
+};
+
+Material get_random_light(float seed) {
+    int lights = 0;
+    for (int i = 0; i < n_materials; i++) {
+        Material material = fetchMaterial(i);
+        if (material.emission.x > 0.0 || material.emission.y > 0.0 || material.emission.z > 0.0) {
+            lights++;
+        }
+    }
+
+    int m = int(rand(vec2(seed, 0.0)) * float(lights));
+    int m_index = 0;
+    Material material;
+    for (int i = 0; i < n_materials; i++) {
+        Material material = fetchMaterial(i);
+        if (material.emission.x > 0.0 || material.emission.y > 0.0 || material.emission.z > 0.0) {
+            if (m_index == m) {
+                return material;
+            }
+
+            m_index++;
+        }
+    }
+}
+
+bool sample_on_light(out HitOnLight hit, float seed) {
+    Material material = get_random_light(seed);
+    int t_index = int(rand(vec2(seed, 1.0)) * float(material.t_index_max - material.t_index_min)) + material.t_index_min;
+
+    Triangle t = fetchTriangle(t_index);
+
+    float u = rand(vec2(seed, 2.0));
+    float v = rand(vec2(seed, 3.0));
+    if (u + v > 1.0) {
+        u = 1.0 - u;
+        v = 1.0 - v;
+    }
+
+    hit.point = t.vertex + t.edge1 * u + t.edge2 * v;
+    hit.normal = normalize(cross(t.edge1, t.edge2));
+    hit.area_prob = 2.0 / length(cross(t.edge1, t.edge2));
+    hit.index = t_index;
+    hit.emission = material.emission;
+
+    return true;
 }
 
 vec3 raytrace(Ray ray) {
@@ -401,16 +443,20 @@ vec3 raytrace(Ray ray) {
     vec3 weight = vec3(1.0);
     int count = 0;
 
+    bool is_prev_perfect_specular = false;
+
     while (true) {
         HitInScene hit = intersect(ray);
         if (hit.index == -1) {
             return color;
         }
 
+        Triangle t;
+        Material m;
         vec3 object_color = vec3(1.0);
         if (hit.type == TTriangle) {
-            Triangle t = fetchTriangle(hit.index);
-            Material m = fetchMaterial(t.material_id);
+            t = fetchTriangle(hit.index);
+            m = fetchMaterial(t.material_id);
             object_color = m.color;
         } else {
             object_color = vec3(1, 0, 1);
@@ -426,10 +472,39 @@ vec3 raytrace(Ray ray) {
             return orienting_normal + vec3(0.25);
         }
 
-        if (hit.type == TTriangle) {
-            Triangle t = fetchTriangle(hit.index);
-            Material m = fetchMaterial(t.material_id);
+        if (hit.type == TTriangle && is_prev_perfect_specular) {
             color += m.emission * weight;
+        }
+
+        vec3 weight_delta = object_color;
+        float seed = float(iterations) + float(count) + rand(hit.r.point.xy);
+
+        bool is_specular = false;
+        if (m.specular_weight > 0.0) {
+            float specular_prob = m.specular_weight / (m.specular_weight + 1.0);
+            float r = rand(vec2(seed, m.specular_weight) + hit.r.point.xy);
+            if (r < specular_prob) {
+                is_specular = true;
+                weight_delta = m.specular / specular_prob;
+            } else {
+                weight_delta = object_color / (1.0 - specular_prob);
+            }
+        }
+        if (!is_specular) {
+            HitOnLight hit_on_light;
+            if (!sample_on_light(hit_on_light, seed)) {
+                return color;
+            }
+
+            Ray shadow_ray = Ray(hit.r.point, normalize(hit_on_light.point - hit.r.point));
+
+            HitInScene shadow_ray_hit = intersect(ray);
+            return shadow_ray_hit.r.normal;
+            if (shadow_ray_hit.index != -1 && shadow_ray_hit.type == TTriangle && shadow_ray_hit.index == hit_on_light.index) {
+                color += hit_on_light.emission * weight * abs(dot(hit_on_light.normal, shadow_ray.direction)) * hit_on_light.area_prob;
+
+                return hit_on_light.normal;
+            }
         }
 
         float russian_roulette_threshold = 0.5;
@@ -440,16 +515,16 @@ vec3 raytrace(Ray ray) {
             russian_roulette_threshold *= pow(0.5, float(count - 5));
         }
 
-        float seed = float(iterations) + float(count) + rand(hit.r.point.xy);
         float r = rand(vec2(seed, 0.0));
         if (r >= russian_roulette_threshold) {
             return color;
         }
 
-        vec3 weight_delta = vec3(1.0);
-        next_ray(hit, seed, ray, weight_delta);
+        next_ray(hit, seed, ray, is_specular);
         weight *= weight_delta / russian_roulette_threshold;
         count++;
+
+        is_prev_perfect_specular = is_specular;
     }
 }
 
