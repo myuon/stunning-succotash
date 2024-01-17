@@ -498,12 +498,11 @@ vec3 raytrace(Ray ray) {
 
             Ray shadow_ray = Ray(hit.r.point, normalize(hit_on_light.point - hit.r.point));
 
-            HitInScene shadow_ray_hit = intersect(ray);
-            return shadow_ray_hit.r.normal;
+            HitInScene shadow_ray_hit = intersect(shadow_ray);
+            vec3 shadow_ray_orienting_normal = dot(shadow_ray_hit.r.normal, shadow_ray.direction) < 0.0 ? shadow_ray_hit.r.normal : -shadow_ray_hit.r.normal;
+
             if (shadow_ray_hit.index != -1 && shadow_ray_hit.type == TTriangle && shadow_ray_hit.index == hit_on_light.index) {
                 color += hit_on_light.emission * weight * abs(dot(hit_on_light.normal, shadow_ray.direction)) * hit_on_light.area_prob;
-
-                return hit_on_light.normal;
             }
         }
 
