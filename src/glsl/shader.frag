@@ -443,7 +443,7 @@ vec3 raytrace(Ray ray) {
     vec3 weight = vec3(1.0);
     int count = 0;
 
-    bool is_prev_perfect_specular = false;
+    bool is_prev_perfect_specular = true;
 
     while (true) {
         HitInScene hit = intersect(ray);
