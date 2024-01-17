@@ -502,7 +502,8 @@ vec3 raytrace(Ray ray) {
             vec3 shadow_ray_orienting_normal = dot(shadow_ray_hit.r.normal, shadow_ray.direction) < 0.0 ? shadow_ray_hit.r.normal : -shadow_ray_hit.r.normal;
 
             if (shadow_ray_hit.index != -1 && shadow_ray_hit.type == TTriangle && shadow_ray_hit.index == hit_on_light.index) {
-                color += hit_on_light.emission * weight * abs(dot(hit_on_light.normal, shadow_ray.direction)) * hit_on_light.area_prob;
+                float g = abs(dot(hit_on_light.normal, shadow_ray.direction)) * abs(dot(shadow_ray.direction, hit.r.normal)) / pow(length(hit_on_light.point - hit.r.point), 2.0);
+                color += hit_on_light.emission * weight * object_color * g / hit_on_light.area_prob;
             }
         }
 
