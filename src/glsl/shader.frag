@@ -427,6 +427,10 @@ void next_ray(HitInScene hit, float seed, inout Ray ray, bool is_specular) {
         Triangle t = fetchTriangle(hit.index);
         Material m = fetchMaterial(t.material_id);
         object_color = m.color;
+    } else if (hit.type == TSphere) {
+        Sphere s = fetchSphere(hit.index);
+        Material m = fetchMaterial(s.material_id);
+        object_color = m.color;
     } else {
         object_color = vec3(1, 0, 1);
     }
@@ -443,6 +447,17 @@ void next_ray(HitInScene hit, float seed, inout Ray ray, bool is_specular) {
         } else {
             ray.direction = randOnHemisphere(orienting_normal, seed);
         }
+    } else if (hit.type == TSphere) {
+        Sphere s = fetchSphere(hit.index);
+        Material m = fetchMaterial(s.material_id);
+
+        if (is_specular) {
+            ray.direction = reflect(ray.direction, orienting_normal);
+        } else {
+            ray.direction = randOnHemisphere(orienting_normal, seed);
+        }
+    } else {
+        ray.direction = reflect(ray.direction, orienting_normal);
     }
 }
 
@@ -520,6 +535,10 @@ vec3 raytrace(Ray ray) {
             t = fetchTriangle(hit.index);
             m = fetchMaterial(t.material_id);
             object_color = m.color;
+        } else if (hit.type == TSphere) {
+            Sphere s = fetchSphere(hit.index);
+            m = fetchMaterial(s.material_id);
+            object_color = m.color;
         } else {
             object_color = vec3(1, 0, 1);
         }
@@ -538,7 +557,7 @@ vec3 raytrace(Ray ray) {
             return orienting_normal + vec3(0.25);
         }
 
-        if (hit.type == TTriangle && is_prev_perfect_specular) {
+        if (is_prev_perfect_specular) {
             color += m.emission * weight;
         }
 
@@ -566,7 +585,7 @@ vec3 raytrace(Ray ray) {
 
             HitInScene shadow_ray_hit = intersect(shadow_ray);
 
-            if (shadow_ray_hit.index != -1 && shadow_ray_hit.type == TTriangle && shadow_ray_hit.index == hit_on_light.index) {
+            if (shadow_ray_hit.index != -1 && shadow_ray_hit.index == hit_on_light.index) {
                 float g = abs(dot(hit_on_light.normal, shadow_ray.direction)) * abs(dot(shadow_ray.direction, hit.r.normal)) / pow(length(hit_on_light.point - hit.r.point), 2.0);
                 color += hit_on_light.emission * weight * weight_delta * object_color * g / hit_on_light.area_prob;
             }
