@@ -637,10 +637,6 @@ const loadScene = async (
           shape: "triangle",
         };
       } else if (shape.type === "sphere") {
-        const aabb = [
-          vec3.fromValues(Infinity, Infinity, Infinity),
-          vec3.fromValues(-Infinity, -Infinity, -Infinity),
-        ] as [vec3, vec3];
         const materialId = Object.keys(materials).length;
 
         spheres.push({
@@ -667,9 +663,6 @@ const loadScene = async (
           shape.radius!,
         ]);
 
-        vec3.min(aabb[0], aabb[0], minv);
-        vec3.max(aabb[1], aabb[1], maxv);
-
         materials[shape.id] = {
           id: materialId,
           name: shape.id,
@@ -681,7 +674,7 @@ const loadScene = async (
           color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
           specular: [0.0, 0.0, 0.0],
           specularWeight: 0.0,
-          aabb,
+          aabb: [minv, maxv],
           index: spheres.length - 1,
           length: 1,
           shape: "sphere",

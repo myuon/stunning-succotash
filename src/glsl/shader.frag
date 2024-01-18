@@ -156,10 +156,11 @@ struct Sphere {
 
 Sphere fetchSphere(int index) {
     int size = 8 / 4;
+    int offset = sphere_texture_cursor / 4;
 
-    vec3 center = texture(triangles_texture, getNormalizedXYCoord(sphere_texture_cursor + index * size, textureSize)).xyz;
-    float material_id = texture(triangles_texture, getNormalizedXYCoord(sphere_texture_cursor + index * size, textureSize)).w;
-    float radius = texture(triangles_texture, getNormalizedXYCoord(sphere_texture_cursor + index * size + 1, textureSize)).x;
+    vec3 center = texture(triangles_texture, getNormalizedXYCoord(offset + index * size, textureSize)).xyz;
+    float material_id = texture(triangles_texture, getNormalizedXYCoord(offset + index * size, textureSize)).w;
+    float radius = texture(triangles_texture, getNormalizedXYCoord(offset + index * size + 1, textureSize)).x;
 
     return Sphere(center, radius, int(material_id));
 }
