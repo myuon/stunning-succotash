@@ -183,7 +183,7 @@ bool Sphere_intersect(Sphere self, Ray ray, inout HitRecord hit) {
     float t;
     if (t1 < kEPS) {
         t = t2;
-    } else if (t2 < kEPS) {
+    } else {
         t = t1;
     }
 
@@ -442,26 +442,23 @@ void next_ray(HitInScene hit, float seed, inout Ray ray, bool is_specular) {
     vec3 orienting_normal = dot(hit.r.normal, ray.direction) < 0.0 ? hit.r.normal : -hit.r.normal;
     ray.origin = hit.r.point + orienting_normal * kEPS;
 
+    Material m;
+
     if (hit.type == TTriangle) {
         Triangle t = fetchTriangle(hit.index);
-        Material m = fetchMaterial(t.material_id);
-
-        if (is_specular) {
-            ray.direction = reflect(ray.direction, orienting_normal);
-        } else {
-            ray.direction = randOnHemisphere(orienting_normal, seed);
-        }
+        m = fetchMaterial(t.material_id);
     } else if (hit.type == TSphere) {
         Sphere s = fetchSphere(hit.index);
-        Material m = fetchMaterial(s.material_id);
-
-        if (is_specular) {
-            ray.direction = reflect(ray.direction, orienting_normal);
-        } else {
-            ray.direction = randOnHemisphere(orienting_normal, seed);
-        }
+        m = fetchMaterial(s.material_id);
     } else {
         ray.direction = reflect(ray.direction, orienting_normal);
+        return;
+    }
+
+    if (is_specular) {
+        ray.direction = reflect(ray.direction, orienting_normal);
+    } else {
+        ray.direction = randOnHemisphere(orienting_normal, seed);
     }
 }
 
