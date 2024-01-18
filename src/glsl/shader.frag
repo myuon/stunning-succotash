@@ -20,6 +20,7 @@ uniform int sphere_texture_cursor;
 const int RenderTypeRender = 0;
 const int RenderTypeColor = 1;
 const int RenderTypeNormal = 2;
+const int RenderTypeEmission = 3;
 
 in vec2 v_texcoord;
 out vec4 outColor;
@@ -523,8 +524,12 @@ vec3 raytrace(Ray ray) {
             object_color = vec3(1, 0, 1);
         }
 
-        if (render_type == RenderTypeColor && hit.index != -1) {
+        if (render_type == RenderTypeColor) {
             return object_color;
+        }
+
+        if (render_type == RenderTypeEmission) {
+            return m.emission + vec3(0.1);
         }
 
         vec3 orienting_normal = dot(hit.r.normal, ray.direction) < 0.0 ? hit.r.normal : -hit.r.normal;

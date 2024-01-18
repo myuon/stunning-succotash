@@ -13,7 +13,7 @@ import {
 import { vec3, vec4 } from "gl-matrix";
 import { createProgramFromSource, createVao, diagnoseGlError } from "./webgl";
 
-const renderTypes = ["render", "color", "normal"];
+const renderTypes = ["render", "color", "normal", "emission"];
 
 const objFiles = import.meta.glob("./scenes/cornell-box-mtl/*", { as: "raw" });
 const xmlFiles = import.meta.glob("./scenes/**/*.xml", { as: "raw" });
