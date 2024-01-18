@@ -14,6 +14,8 @@ uniform int render_type;
 uniform sampler2D triangles_texture;
 uniform sampler2D material_texture;
 uniform sampler2D bvh_tree_texture;
+uniform int n_spheres;
+uniform int sphere_texture_cursor;
 
 const int RenderTypeRender = 0;
 const int RenderTypeColor = 1;
@@ -145,6 +147,47 @@ Triangle fetchTriangle(int index) {
     return Triangle(vertex, edge1, edge2, normal0, normal1, normal2, int(material_id), smooth_normal > 0.0);
 }
 
+struct Sphere {
+    vec3 center;
+    float radius;
+    int material_id;
+};
+
+Sphere fetchSphere(int index) {
+    int size = 8 / 4;
+
+    vec3 center = texture(triangles_texture, getNormalizedXYCoord(sphere_texture_cursor + index * size, textureSize)).xyz;
+    float radius = texture(triangles_texture, getNormalizedXYCoord(sphere_texture_cursor + index * size, textureSize)).w;
+    float material_id = texture(triangles_texture, getNormalizedXYCoord(sphere_texture_cursor + index * size + 1, textureSize)).x;
+
+    return Sphere(center, radius, int(material_id));
+}
+
+bool Sphere_intersect(Sphere self, Ray ray, inout HitRecord hit) {
+    vec3 oc = ray.origin - self.center;
+    float a = dot(ray.direction, ray.direction);
+    float b = 2.0 * dot(oc, ray.direction);
+    float c = dot(oc, oc) - self.radius * self.radius;
+    float d = b * b - 4.0 * a * c;
+
+    if (d < 0.0) {
+        return false;
+    }
+
+    float t = (-b - sqrt(d)) / (2.0 * a);
+    if (t < kEPS) {
+        t = (-b + sqrt(d)) / (2.0 * a);
+    }
+    if (t < kEPS) {
+        return false;
+    }
+
+    hit.normal = normalize(ray.origin + ray.direction * t - self.center);
+    hit.point = ray.origin + ray.direction * t;
+
+    return true;
+}
+
 struct AABB {
     vec3 minv;
     vec3 maxv;
@@ -206,6 +249,7 @@ struct Material {
     AABB aabb;
     int t_index_min;
     int t_index_max;
+    uint shape;
 };
 
 Material fetchMaterial(int index) {
@@ -214,6 +258,7 @@ Material fetchMaterial(int index) {
     int y = (index * size) / textureSize;
 
     vec3 color = texture(material_texture, getNormalizedXYCoord(index * size, textureSize)).xyz;
+    uint shape = uint(texture(material_texture, getNormalizedXYCoord(index * size, textureSize)).w);
     vec3 emission = texture(material_texture, getNormalizedXYCoord(index * size + 1, textureSize)).xyz;
     vec3 specular = texture(material_texture, getNormalizedXYCoord(index * size + 2, textureSize)).xyz;
     float specular_weight = texture(material_texture, getNormalizedXYCoord(index * size + 2, textureSize)).w;
@@ -222,7 +267,7 @@ Material fetchMaterial(int index) {
     vec3 maxv = texture(material_texture, getNormalizedXYCoord(index * size + 4, textureSize)).xyz;
     int t_index_max = int(texture(material_texture, getNormalizedXYCoord(index * size + 4, textureSize)).w);
 
-    return Material(index, color, emission, specular, specular_weight, AABB(minv, maxv), t_index_min, t_index_max);
+    return Material(index, color, emission, specular, specular_weight, AABB(minv, maxv), t_index_min, t_index_max, shape);
 }
 
 struct BVHTreeNode {
@@ -265,6 +310,7 @@ int fetchBVHTreeLeafTriangleIndex(int cursor) {
 }
 
 const uint TTriangle = 0u;
+const uint TSphere = 1u;
 
 struct HitInScene {
     int index;
@@ -340,16 +386,31 @@ HitInScene intersect(Ray ray){
             continue;
         }
 
-        for (int j = material.t_index_min; j < material.t_index_max; j++) {
-            Triangle obj = fetchTriangle(j);
+        if (material.shape == TTriangle) {
+            for (int j = material.t_index_min; j < material.t_index_max; j++) {
+                Triangle obj = fetchTriangle(j);
+
+                HitRecord r;
+                if (Triangle_intersect(obj, ray, r)) {
+                    float t = length(r.point - ray.origin);
+                    if (t < dist) {
+                        dist = t;
+                        hit.index = j;
+                        hit.type = TTriangle;
+                        hit.r = r;
+                    }
+                }
+            }
+        } else if (material.shape == TSphere) {
+            Sphere obj = fetchSphere(material.t_index_min);
 
             HitRecord r;
-            if (Triangle_intersect(obj, ray, r)) {
+            if (Sphere_intersect(obj, ray, r)) {
                 float t = length(r.point - ray.origin);
                 if (t < dist) {
                     dist = t;
-                    hit.index = j;
-                    hit.type = TTriangle;
+                    hit.index = material.t_index_min;
+                    hit.type = TSphere;
                     hit.r = r;
                 }
             }

@@ -12,6 +12,8 @@ export interface Shape {
   };
   matrix: number[];
   model?: Triangle[];
+  radius?: number;
+  center?: [number, number, number];
 }
 
 export interface Scene {
@@ -79,6 +81,20 @@ export const loadMitsubaScene = async (
         shape.model = await loadObjFile(
           await modelFiles[child.getAttribute("value")!]()
         );
+      } else if (
+        child.nodeName === "float" &&
+        child.getAttribute("name") === "radius"
+      ) {
+        shape.radius = parseFloat(child.getAttribute("value")!);
+      } else if (
+        child.nodeName === "point" &&
+        child.getAttribute("name") === "center"
+      ) {
+        shape.center = [
+          parseFloat(child.getAttribute("x")!),
+          parseFloat(child.getAttribute("y")!),
+          parseFloat(child.getAttribute("z")!),
+        ];
       }
     }
 

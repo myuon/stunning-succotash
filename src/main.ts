@@ -317,6 +317,7 @@ const loadScene = async (
       specularWeight: number;
       aabb?: [vec3, vec3];
       triangles?: [number, number];
+      shape: "triangle" | "sphere";
     }
   > = {};
 
@@ -333,6 +334,16 @@ const loadScene = async (
     };
     materialId: number;
     smooth: boolean;
+  }[] = [];
+
+  const spheres: {
+    id: number;
+    type: "sphere";
+    sphere: {
+      center: vec3;
+      radius: number;
+    };
+    materialId: number;
   }[] = [];
 
   if (sceneFile.endsWith(".xml")) {
@@ -429,6 +440,7 @@ const loadScene = async (
           specularWeight: 0.0,
           aabb,
           triangles: [triangles.length - 2, triangles.length],
+          shape: "triangle",
         };
       } else if (shape.type === "cube") {
         const aabb = [
@@ -547,6 +559,7 @@ const loadScene = async (
           specularWeight: 0.0,
           aabb,
           triangles: [triangles.length - 12, triangles.length],
+          shape: "triangle",
         };
       } else if (shape.type === "obj") {
         const aabb = [
@@ -617,6 +630,56 @@ const loadScene = async (
           specularWeight: 0.0,
           aabb,
           triangles: [trianglesIndexStart, triangles.length],
+          shape: "triangle",
+        };
+      } else if (shape.type === "sphere") {
+        const aabb = [
+          vec3.fromValues(Infinity, Infinity, Infinity),
+          vec3.fromValues(-Infinity, -Infinity, -Infinity),
+        ] as [vec3, vec3];
+        const materialId = Object.keys(materials).length;
+
+        spheres.push({
+          id: spheres.length,
+          type: "sphere",
+          sphere: {
+            center: shape.center!,
+            radius: shape.radius!,
+          },
+          materialId,
+        });
+
+        const minv = vec3.create();
+        vec3.subtract(minv, shape.center!, [
+          shape.radius!,
+          shape.radius!,
+          shape.radius!,
+        ]);
+
+        const maxv = vec3.create();
+        vec3.add(maxv, shape.center!, [
+          shape.radius!,
+          shape.radius!,
+          shape.radius!,
+        ]);
+
+        vec3.min(aabb[0], aabb[0], minv);
+        vec3.max(aabb[1], aabb[1], maxv);
+
+        materials[shape.id] = {
+          id: materialId,
+          name: shape.id,
+          emission: [
+            shape.emitter?.radiance[0] ?? 0.0,
+            shape.emitter?.radiance[1] ?? 0.0,
+            shape.emitter?.radiance[2] ?? 0.0,
+          ],
+          color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+          specular: [0.0, 0.0, 0.0],
+          specularWeight: 0.0,
+          aabb,
+          triangles: [triangles.length - 1, triangles.length],
+          shape: "sphere",
         };
       } else {
         console.warn(
@@ -674,6 +737,7 @@ const loadScene = async (
             color: material.Ka ?? [0.0, 0.0, 0.0],
             specular: material.Ks ?? [0.0, 0.0, 0.0],
             specularWeight: material.Ns ?? 0.0,
+            shape: "triangle",
           };
 
           triangles.push({
@@ -718,6 +782,7 @@ const loadScene = async (
             color: material.Ka ?? [0.0, 0.0, 0.0],
             specular: material.Ks ?? [0.0, 0.0, 0.0],
             specularWeight: material.Ns ?? 0.0,
+            shape: "triangle",
           };
 
           triangles.push({
@@ -855,8 +920,10 @@ const loadScene = async (
     specularWeight: 0.0,
     aabb: bvhTree.aabb,
     triangles: [triangles.length - 12 * 3, triangles.length],
+    shape: "triangle",
   };
 
+  let sphereTextureCursor = 0;
   const triangleTextureData = new Float32Array(textureSize * textureSize * 4);
   triangles.forEach((triangle, i) => {
     const size = 24;
@@ -886,6 +953,23 @@ const loadScene = async (
     triangleTextureData[i * size + 20] = triangle.triangle.normal3?.[0] ?? 0.0;
     triangleTextureData[i * size + 21] = triangle.triangle.normal3?.[1] ?? 0.0;
     triangleTextureData[i * size + 22] = triangle.triangle.normal3?.[2] ?? 0.0;
+
+    sphereTextureCursor += size;
+  });
+
+  spheres.forEach((sphere, i) => {
+    const size = 8;
+
+    triangleTextureData[sphereTextureCursor + i * size + 0] =
+      sphere.sphere.center[0];
+    triangleTextureData[sphereTextureCursor + i * size + 1] =
+      sphere.sphere.center[1];
+    triangleTextureData[sphereTextureCursor + i * size + 2] =
+      sphere.sphere.center[2];
+    triangleTextureData[sphereTextureCursor + i * size + 3] = sphere.materialId;
+
+    triangleTextureData[sphereTextureCursor + i * size + 4] =
+      sphere.sphere.radius;
   });
 
   gl.activeTexture(gl.TEXTURE1);
@@ -913,6 +997,8 @@ const loadScene = async (
     materialTextureData[material.id * size + 0] = material.color[0];
     materialTextureData[material.id * size + 1] = material.color[1];
     materialTextureData[material.id * size + 2] = material.color[2];
+    materialTextureData[material.id * size + 3] =
+      material.shape === "triangle" ? 0 : material.shape === "sphere" ? 1 : -1;
 
     materialTextureData[material.id * size + 4] = material.emission[0];
     materialTextureData[material.id * size + 5] = material.emission[1];
@@ -962,6 +1048,8 @@ const loadScene = async (
     camera,
     triangles,
     materials,
+    sphereTextureCursor,
+    spheres,
   };
 };
 
@@ -1008,6 +1096,8 @@ const main = async () => {
     triangles,
     materials,
     bvhTreeTexture,
+    sphereTextureCursor,
+    spheres,
   } = await loadScene(value.scene, value.renderBoundingBoxes, gl)!;
 
   const stats = new Stats();
@@ -1223,6 +1313,11 @@ const main = async () => {
     render_type: gl.getUniformLocation(program, "render_type"),
     bvhTreeTexture: gl.getUniformLocation(program, "bvh_tree_texture"),
     n_bvh_tree_nodes: gl.getUniformLocation(program, "n_bvh_tree_nodes"),
+    n_spheres: gl.getUniformLocation(program, "n_spheres"),
+    sphereTextureCursor: gl.getUniformLocation(
+      program,
+      "sphere_texture_cursor"
+    ),
   };
 
   const shaderVao = createVao(
@@ -1339,6 +1434,8 @@ const main = async () => {
         programLocations.render_type,
         renderTypes.indexOf(value.renderType)
       );
+      gl.uniform1i(programLocations.n_spheres, spheres.length);
+      gl.uniform1i(programLocations.sphereTextureCursor, sphereTextureCursor);
 
       gl.bindVertexArray(shaderVao);
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
