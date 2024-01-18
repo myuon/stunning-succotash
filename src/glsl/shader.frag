@@ -165,26 +165,31 @@ Sphere fetchSphere(int index) {
 }
 
 bool Sphere_intersect(Sphere self, Ray ray, inout HitRecord hit) {
-    vec3 oc = ray.origin - self.center;
-    float a = dot(ray.direction, ray.direction);
-    float b = 2.0 * dot(oc, ray.direction);
-    float c = dot(oc, oc) - self.radius * self.radius;
-    float d = b * b - 4.0 * a * c;
-
+    vec3 co = self.center - ray.origin;
+    float b = dot(co, ray.direction);
+    float d = b * b - dot(co, co) + self.radius * self.radius;
     if (d < 0.0) {
         return false;
     }
 
-    float t = (-b - sqrt(d)) / (2.0 * a);
-    if (t < kEPS) {
-        t = (-b + sqrt(d)) / (2.0 * a);
-    }
-    if (t < kEPS) {
+    float sqd = sqrt(d);
+    float t1 = b - sqd;
+    float t2 = b + sqd;
+    if (t1 < kEPS && t2 < kEPS) {
         return false;
     }
 
-    hit.normal = normalize(ray.origin + ray.direction * t - self.center);
-    hit.point = ray.origin + ray.direction * t;
+    float t;
+    if (t1 < kEPS) {
+        t = t2;
+    } else if (t2 < kEPS) {
+        t = t1;
+    }
+
+    vec3 point = ray.origin + ray.direction * t;
+
+    hit.normal = normalize(point - self.center);
+    hit.point = point;
 
     return true;
 }
@@ -255,8 +260,6 @@ struct Material {
 
 Material fetchMaterial(int index) {
     int size = 20 / 4;
-    int x = (index * size) % textureSize;
-    int y = (index * size) / textureSize;
 
     vec3 color = texture(material_texture, getNormalizedXYCoord(index * size, textureSize)).xyz;
     uint shape = uint(texture(material_texture, getNormalizedXYCoord(index * size, textureSize)).w);
