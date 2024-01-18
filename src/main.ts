@@ -678,7 +678,7 @@ const loadScene = async (
           specular: [0.0, 0.0, 0.0],
           specularWeight: 0.0,
           aabb,
-          triangles: [triangles.length - 1, triangles.length],
+          triangles: [spheres.length - 1, spheres.length],
           shape: "sphere",
         };
       } else {
