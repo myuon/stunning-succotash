@@ -316,7 +316,8 @@ const loadScene = async (
       specular: vec3;
       specularWeight: number;
       aabb?: [vec3, vec3];
-      triangles?: [number, number];
+      index?: number;
+      length?: number;
       shape: "triangle" | "sphere";
     }
   > = {};
@@ -439,7 +440,8 @@ const loadScene = async (
           specular: [0.0, 0.0, 0.0],
           specularWeight: 0.0,
           aabb,
-          triangles: [triangles.length - 2, triangles.length],
+          index: triangles.length - 2,
+          length: 2,
           shape: "triangle",
         };
       } else if (shape.type === "cube") {
@@ -558,7 +560,8 @@ const loadScene = async (
           specular: [0.0, 0.0, 0.0],
           specularWeight: 0.0,
           aabb,
-          triangles: [triangles.length - 12, triangles.length],
+          index: triangles.length - 12,
+          length: 12,
           shape: "triangle",
         };
       } else if (shape.type === "obj") {
@@ -629,7 +632,8 @@ const loadScene = async (
           specular: [0.0, 0.0, 0.0],
           specularWeight: 0.0,
           aabb,
-          triangles: [trianglesIndexStart, triangles.length],
+          index: trianglesIndexStart,
+          length: triangles.length - trianglesIndexStart,
           shape: "triangle",
         };
       } else if (shape.type === "sphere") {
@@ -678,7 +682,8 @@ const loadScene = async (
           specular: [0.0, 0.0, 0.0],
           specularWeight: 0.0,
           aabb,
-          triangles: [spheres.length - 1, spheres.length],
+          index: spheres.length - 1,
+          length: 1,
           shape: "sphere",
         };
       } else {
@@ -816,10 +821,8 @@ const loadScene = async (
       const trianglesIndexEnd = triangles.length;
 
       materials[object.usemtl].aabb = aabb;
-      materials[object.usemtl].triangles = [
-        trianglesIndexStart,
-        trianglesIndexEnd,
-      ];
+      materials[object.usemtl].index = trianglesIndexStart;
+      materials[object.usemtl].length = trianglesIndexEnd - trianglesIndexStart;
     });
   }
   console.log(triangles);
@@ -919,7 +922,8 @@ const loadScene = async (
     specular: [0.0, 0.0, 0.0],
     specularWeight: 0.0,
     aabb: bvhTree.aabb,
-    triangles: [triangles.length - 12 * 3, triangles.length],
+    index: triangles.length - 12 * 3,
+    length: 12 * 3,
     shape: "triangle",
   };
 
@@ -1012,14 +1016,12 @@ const loadScene = async (
     materialTextureData[material.id * size + 12] = material.aabb![0][0];
     materialTextureData[material.id * size + 13] = material.aabb![0][1];
     materialTextureData[material.id * size + 14] = material.aabb![0][2];
-    materialTextureData[material.id * size + 15] =
-      material.triangles?.[0] ?? -1;
+    materialTextureData[material.id * size + 15] = material.index ?? -1;
 
     materialTextureData[material.id * size + 16] = material.aabb![1][0];
     materialTextureData[material.id * size + 17] = material.aabb![1][1];
     materialTextureData[material.id * size + 18] = material.aabb![1][2];
-    materialTextureData[material.id * size + 19] =
-      material.triangles?.[1] ?? -1;
+    materialTextureData[material.id * size + 19] = material.length ?? -1;
   });
 
   gl.activeTexture(gl.TEXTURE2);
