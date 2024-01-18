@@ -826,6 +826,7 @@ const loadScene = async (
     });
   }
   console.log(triangles);
+  console.log(spheres);
   console.log(materials);
 
   const now = performance.now();

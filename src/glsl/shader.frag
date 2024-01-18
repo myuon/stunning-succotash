@@ -158,8 +158,8 @@ Sphere fetchSphere(int index) {
     int size = 8 / 4;
 
     vec3 center = texture(triangles_texture, getNormalizedXYCoord(sphere_texture_cursor + index * size, textureSize)).xyz;
-    float radius = texture(triangles_texture, getNormalizedXYCoord(sphere_texture_cursor + index * size, textureSize)).w;
-    float material_id = texture(triangles_texture, getNormalizedXYCoord(sphere_texture_cursor + index * size + 1, textureSize)).x;
+    float material_id = texture(triangles_texture, getNormalizedXYCoord(sphere_texture_cursor + index * size, textureSize)).w;
+    float radius = texture(triangles_texture, getNormalizedXYCoord(sphere_texture_cursor + index * size + 1, textureSize)).x;
 
     return Sphere(center, radius, int(material_id));
 }
