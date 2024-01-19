@@ -6,6 +6,7 @@ export interface Shape {
   bsdf?: {
     diffuse: boolean;
     reflectance: [number, number, number];
+    specularReflectance?: [number, number, number];
   };
   emitter?: {
     radiance: [number, number, number];
@@ -48,9 +49,19 @@ export const loadMitsubaScene = async (
           ...(parseBsdf(child) ?? {}),
           diffuse: true,
         };
-      } else if (child.nodeName === "rgb") {
+      } else if (
+        child.nodeName === "rgb" &&
+        child.getAttribute("name") === "reflectance"
+      ) {
         return {
           reflectance: parseRgb(child),
+        };
+      } else if (
+        child.nodeName === "rgb" &&
+        child.getAttribute("name") === "specular_reflectance"
+      ) {
+        return {
+          specularReflectance: parseRgb(child),
         };
       }
     }

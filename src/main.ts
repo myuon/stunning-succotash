@@ -315,6 +315,7 @@ const loadScene = async (
       color: vec3;
       specular: vec3;
       specularWeight: number;
+      specularReflectance?: vec3;
       aabb?: [vec3, vec3];
       index?: number;
       length?: number;
@@ -557,6 +558,9 @@ const loadScene = async (
             shape.emitter?.radiance[2] ?? 0.0,
           ],
           color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
+          specularReflectance: shape.bsdf?.specularReflectance ?? [
+            0.0, 0.0, 0.0,
+          ],
           specular: [0.0, 0.0, 0.0],
           specularWeight: 0.0,
           aabb,
@@ -630,6 +634,9 @@ const loadScene = async (
             ? [1.0, 0.0, 1.0]
             : shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
           specular: [0.0, 0.0, 0.0],
+          specularReflectance: shape.bsdf?.specularReflectance ?? [
+            0.0, 0.0, 0.0,
+          ],
           specularWeight: 0.0,
           aabb,
           index: trianglesIndexStart,
@@ -673,6 +680,9 @@ const loadScene = async (
           ],
           color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
           specular: [0.0, 0.0, 0.0],
+          specularReflectance: shape.bsdf?.specularReflectance ?? [
+            0.0, 0.0, 0.0,
+          ],
           specularWeight: 0.0,
           aabb: [minv, maxv],
           index: spheres.length - 1,
@@ -990,7 +1000,7 @@ const loadScene = async (
 
   const materialTextureData = new Float32Array(textureSize * textureSize * 4);
   Object.values(materials).forEach((material) => {
-    const size = 20;
+    const size = 24;
 
     materialTextureData[material.id * size + 0] = material.color[0];
     materialTextureData[material.id * size + 1] = material.color[1];
@@ -1016,6 +1026,13 @@ const loadScene = async (
     materialTextureData[material.id * size + 17] = material.aabb![1][1];
     materialTextureData[material.id * size + 18] = material.aabb![1][2];
     materialTextureData[material.id * size + 19] = material.length ?? -1;
+
+    materialTextureData[material.id * size + 20] =
+      material.specularReflectance?.[0] ?? 0.0;
+    materialTextureData[material.id * size + 21] =
+      material.specularReflectance?.[1] ?? 0.0;
+    materialTextureData[material.id * size + 22] =
+      material.specularReflectance?.[2] ?? 0.0;
   });
 
   gl.activeTexture(gl.TEXTURE2);

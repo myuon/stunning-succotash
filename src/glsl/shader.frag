@@ -257,10 +257,11 @@ struct Material {
     int t_index_min;
     int t_index_max;
     uint shape;
+    vec3 specular_reflectance;
 };
 
 Material fetchMaterial(int index) {
-    int size = 20 / 4;
+    int size = 24 / 4;
 
     vec3 color = texture(material_texture, getNormalizedXYCoord(index * size, textureSize)).xyz;
     uint shape = uint(texture(material_texture, getNormalizedXYCoord(index * size, textureSize)).w);
@@ -271,8 +272,9 @@ Material fetchMaterial(int index) {
     int t_index = int(texture(material_texture, getNormalizedXYCoord(index * size + 3, textureSize)).w);
     vec3 maxv = texture(material_texture, getNormalizedXYCoord(index * size + 4, textureSize)).xyz;
     int t_length = int(texture(material_texture, getNormalizedXYCoord(index * size + 4, textureSize)).w);
+    vec3 specular_reflectance = texture(material_texture, getNormalizedXYCoord(index * size + 5, textureSize)).xyz;
 
-    return Material(index, color, emission, specular, specular_weight, AABB(minv, maxv), t_index, t_index + t_length, shape);
+    return Material(index, color, emission, specular, specular_weight, AABB(minv, maxv), t_index, t_index + t_length, shape, specular_reflectance);
 }
 
 struct BVHTreeNode {
