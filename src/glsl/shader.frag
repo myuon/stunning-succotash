@@ -589,8 +589,9 @@ vec3 raytrace(Ray ray) {
             HitInScene shadow_ray_hit = intersect(shadow_ray);
 
             if (shadow_ray_hit.index != -1 && shadow_ray_hit.index == hit_on_light.index) {
+                float f = object_color;
                 float g = abs(dot(hit_on_light.normal, shadow_ray.direction)) * abs(dot(shadow_ray.direction, hit.r.normal)) / pow(length(hit_on_light.point - hit.r.point), 2.0);
-                color += hit_on_light.emission * weight * weight_delta * object_color * g / hit_on_light.area_prob;
+                color += hit_on_light.emission * weight * weight_delta * f * g / hit_on_light.area_prob;
             }
         }
 
