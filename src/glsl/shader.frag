@@ -580,7 +580,7 @@ vec3 raytrace(Ray ray) {
                 weight_delta = object_color / (1.0 - specular_prob);
             }
         }
-        if (!is_prev_perfect_specular) {
+        if (!is_specular) {
             HitOnLight hit_on_light;
             if (!sample_on_light(hit_on_light, seed)) {
                 return color;
@@ -590,7 +590,7 @@ vec3 raytrace(Ray ray) {
 
             HitInScene shadow_ray_hit = intersect(shadow_ray);
 
-            if (shadow_ray_hit.index != -1 && shadow_ray_hit.index == hit_on_light.index) {
+            if (shadow_ray_hit.index == hit_on_light.index) {
                 float g = abs(dot(hit_on_light.normal, shadow_ray.direction)) * abs(dot(shadow_ray.direction, hit.r.normal)) / pow(length(hit_on_light.point - hit.r.point), 2.0);
                 color += hit_on_light.emission * weight * weight_delta * g / hit_on_light.area_prob;
             }
