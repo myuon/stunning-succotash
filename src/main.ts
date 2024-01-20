@@ -1036,6 +1036,7 @@ const loadScene = async (
         ? 2
         : -1;
 
+    materialTextureData[material.id * size + 8] = material.specular[0];
     materialTextureData[material.id * size + 9] = material.specular[1];
     materialTextureData[material.id * size + 10] = material.specular[2];
     materialTextureData[material.id * size + 11] = material.specularWeight;
