@@ -500,22 +500,35 @@ Material get_random_light(float seed) {
 
 bool sample_on_light(out HitOnLight hit, float seed) {
     Material material = get_random_light(seed);
-    int t_index = int(rand(vec2(seed, 1.0)) * float(material.t_index_max - material.t_index_min)) + material.t_index_min;
+    if (material.shape == TTriangle) {
+        int t_index = int(rand(vec2(seed, 1.0)) * float(material.t_index_max - material.t_index_min)) + material.t_index_min;
 
-    Triangle t = fetchTriangle(t_index);
+        Triangle t = fetchTriangle(t_index);
 
-    float u = rand(vec2(seed, 2.0));
-    float v = rand(vec2(seed, 3.0));
-    if (u + v > 1.0) {
-        u = 1.0 - u;
-        v = 1.0 - v;
+        float u = rand(vec2(seed, 2.0));
+        float v = rand(vec2(seed, 3.0));
+        if (u + v > 1.0) {
+            u = 1.0 - u;
+            v = 1.0 - v;
+        }
+
+        hit.point = t.vertex + t.edge1 * u + t.edge2 * v;
+        hit.normal = normalize(cross(t.edge1, t.edge2));
+        hit.area_prob = 2.0 / length(cross(t.edge1, t.edge2));
+        hit.index = t_index;
+        hit.emission = material.emission;
+    } else if (material.shape == TSphere) {
+        Sphere s = fetchSphere(material.t_index_min);
+
+        vec3 p = randOnHemisphere(vec3(0.0, 1.0, 0.0), seed);
+        hit.point = s.center + p * s.radius;
+        hit.normal = normalize(p);
+        hit.area_prob = 1.0 / (4.0 * PI * s.radius * s.radius);
+        hit.index = material.t_index_min;
+        hit.emission = material.emission;
+    } else {
+        return false;
     }
-
-    hit.point = t.vertex + t.edge1 * u + t.edge2 * v;
-    hit.normal = normalize(cross(t.edge1, t.edge2));
-    hit.area_prob = 2.0 / length(cross(t.edge1, t.edge2));
-    hit.index = t_index;
-    hit.emission = material.emission;
 
     return true;
 }
