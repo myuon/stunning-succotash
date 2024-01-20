@@ -441,7 +441,7 @@ const loadScene = async (
           ],
           color: shape.bsdf?.reflectance ?? [0.0, 0.0, 0.0],
           specular: [0.0, 0.0, 0.0],
-          specularWeight: 0.0,
+          specularWeight: shape.bsdf?.alpha ?? 0.0,
           aabb,
           index: triangles.length - 2,
           length: 2,
@@ -565,8 +565,8 @@ const loadScene = async (
           specularReflectance: shape.bsdf?.specularReflectance ?? [
             0.0, 0.0, 0.0,
           ],
-          specular: [0.0, 0.0, 0.0],
-          specularWeight: 0.0,
+          specular: [1.0, 1.0, 1.0],
+          specularWeight: (shape.bsdf?.alpha ?? 0.0) * 1.0, // FIXME: alpha is not the same as specularWeight
           aabb,
           index: triangles.length - 12,
           length: 12,
@@ -643,7 +643,7 @@ const loadScene = async (
           specularReflectance: shape.bsdf?.specularReflectance ?? [
             0.0, 0.0, 0.0,
           ],
-          specularWeight: 0.0,
+          specularWeight: shape.bsdf?.alpha ?? 0.0,
           aabb,
           index: trianglesIndexStart,
           length: triangles.length - trianglesIndexStart,
@@ -691,7 +691,7 @@ const loadScene = async (
           specularReflectance: shape.bsdf?.specularReflectance ?? [
             0.0, 0.0, 0.0,
           ],
-          specularWeight: 0.0,
+          specularWeight: shape.bsdf?.alpha ?? 0.0,
           aabb: [minv, maxv],
           index: spheres.length - 1,
           length: 1,
