@@ -190,7 +190,7 @@ bool Sphere_intersect(Sphere self, Ray ray, inout HitRecord hit) {
     vec3 point = ray.origin + ray.direction * t;
 
     hit.normal = normalize(point - self.center);
-    hit.point = point;
+    hit.point = point + hit.normal * kEPS;
 
     return true;
 }
@@ -578,7 +578,7 @@ vec3 raytrace(Ray ray) {
                 weight_delta = object_color / (1.0 - specular_prob);
             }
         }
-        if (!is_specular) {
+        if (!is_prev_perfect_specular) {
             HitOnLight hit_on_light;
             if (!sample_on_light(hit_on_light, seed)) {
                 return color;
