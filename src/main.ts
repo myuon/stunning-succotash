@@ -320,6 +320,8 @@ const loadScene = async (
       index?: number;
       length?: number;
       shape: "triangle" | "sphere";
+      type: "diffuse" | "specular";
+      roughness: number;
     }
   > = {};
 
@@ -444,6 +446,8 @@ const loadScene = async (
           index: triangles.length - 2,
           length: 2,
           shape: "triangle",
+          type: shape.bsdf?.type ?? "diffuse",
+          roughness: shape.bsdf?.alpha ?? 0.0,
         };
       } else if (shape.type === "cube") {
         const aabb = [
@@ -567,6 +571,8 @@ const loadScene = async (
           index: triangles.length - 12,
           length: 12,
           shape: "triangle",
+          type: shape.bsdf?.type ?? "diffuse",
+          roughness: shape.bsdf?.alpha ?? 0.0,
         };
       } else if (shape.type === "obj") {
         const aabb = [
@@ -642,6 +648,8 @@ const loadScene = async (
           index: trianglesIndexStart,
           length: triangles.length - trianglesIndexStart,
           shape: "triangle",
+          type: shape.bsdf?.type ?? "diffuse",
+          roughness: shape.bsdf?.alpha ?? 0.0,
         };
       } else if (shape.type === "sphere") {
         const materialId = Object.keys(materials).length;
@@ -688,6 +696,8 @@ const loadScene = async (
           index: spheres.length - 1,
           length: 1,
           shape: "sphere",
+          type: shape.bsdf?.type ?? "diffuse",
+          roughness: shape.bsdf?.alpha ?? 0.0,
         };
       } else {
         console.warn(
@@ -746,6 +756,8 @@ const loadScene = async (
             specular: material.Ks ?? [0.0, 0.0, 0.0],
             specularWeight: material.Ns ?? 0.0,
             shape: "triangle",
+            type: "diffuse",
+            roughness: 0.0,
           };
 
           triangles.push({
@@ -791,6 +803,8 @@ const loadScene = async (
             specular: material.Ks ?? [0.0, 0.0, 0.0],
             specularWeight: material.Ns ?? 0.0,
             shape: "triangle",
+            type: "diffuse",
+            roughness: 0.0,
           };
 
           triangles.push({
@@ -929,6 +943,8 @@ const loadScene = async (
     index: triangles.length - 12 * 3,
     length: 12 * 3,
     shape: "triangle",
+    type: "diffuse",
+    roughness: 0.0,
   };
 
   let sphereTextureCursor = 0;
@@ -1011,8 +1027,15 @@ const loadScene = async (
     materialTextureData[material.id * size + 4] = material.emission[0];
     materialTextureData[material.id * size + 5] = material.emission[1];
     materialTextureData[material.id * size + 6] = material.emission[2];
+    materialTextureData[material.id * size + 7] =
+      material.type === "diffuse"
+        ? 0
+        : material.type === "specular"
+        ? 1
+        : material.type === "refractive"
+        ? 2
+        : -1;
 
-    materialTextureData[material.id * size + 8] = material.specular[0];
     materialTextureData[material.id * size + 9] = material.specular[1];
     materialTextureData[material.id * size + 10] = material.specular[2];
     materialTextureData[material.id * size + 11] = material.specularWeight;
@@ -1033,6 +1056,7 @@ const loadScene = async (
       material.specularReflectance?.[1] ?? 0.0;
     materialTextureData[material.id * size + 22] =
       material.specularReflectance?.[2] ?? 0.0;
+    materialTextureData[material.id * size + 23] = material.roughness ?? 0.0;
   });
 
   gl.activeTexture(gl.TEXTURE2);

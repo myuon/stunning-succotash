@@ -4,9 +4,10 @@ export interface Shape {
   id: string;
   type: string;
   bsdf?: {
-    diffuse: boolean;
+    type?: "diffuse" | "specular";
     reflectance: [number, number, number];
     specularReflectance?: [number, number, number];
+    alpha?: number;
   };
   emitter?: {
     radiance: [number, number, number];
@@ -45,9 +46,11 @@ export const loadMitsubaScene = async (
   const parseBsdf = (element: Element): DeepPartial<Shape["bsdf"]> => {
     for (const child of element.children) {
       if (child.nodeName === "bsdf") {
+        const bsdfType = child.getAttribute("type")!;
+
         return {
           ...(parseBsdf(child) ?? {}),
-          diffuse: true,
+          type: bsdfType === "roughconductor" ? "specular" : "diffuse",
         };
       } else if (
         child.nodeName === "rgb" &&
@@ -62,6 +65,13 @@ export const loadMitsubaScene = async (
       ) {
         return {
           specularReflectance: parseRgb(child),
+        };
+      } else if (
+        child.nodeName === "float" &&
+        child.getAttribute("name") === "alpha"
+      ) {
+        return {
+          alpha: parseFloat(child.getAttribute("value")!),
         };
       }
     }

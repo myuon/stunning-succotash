@@ -258,6 +258,7 @@ struct Material {
     int t_index_max;
     uint shape;
     vec3 specular_reflectance;
+    float roughness;
 };
 
 Material fetchMaterial(int index) {
@@ -273,8 +274,9 @@ Material fetchMaterial(int index) {
     vec3 maxv = texture(material_texture, getNormalizedXYCoord(index * size + 4, textureSize)).xyz;
     int t_length = int(texture(material_texture, getNormalizedXYCoord(index * size + 4, textureSize)).w);
     vec3 specular_reflectance = texture(material_texture, getNormalizedXYCoord(index * size + 5, textureSize)).xyz;
+    float roughness = texture(material_texture, getNormalizedXYCoord(index * size + 5, textureSize)).w;
 
-    return Material(index, color, emission, specular, specular_weight, AABB(minv, maxv), t_index, t_index + t_length, shape, specular_reflectance);
+    return Material(index, color, emission, specular, specular_weight, AABB(minv, maxv), t_index, t_index + t_length, shape, specular_reflectance, roughness);
 }
 
 struct BVHTreeNode {
@@ -589,9 +591,8 @@ vec3 raytrace(Ray ray) {
             HitInScene shadow_ray_hit = intersect(shadow_ray);
 
             if (shadow_ray_hit.index != -1 && shadow_ray_hit.index == hit_on_light.index) {
-                float f = object_color;
                 float g = abs(dot(hit_on_light.normal, shadow_ray.direction)) * abs(dot(shadow_ray.direction, hit.r.normal)) / pow(length(hit_on_light.point - hit.r.point), 2.0);
-                color += hit_on_light.emission * weight * weight_delta * f * g / hit_on_light.area_prob;
+                color += hit_on_light.emission * weight * weight_delta * g / hit_on_light.area_prob;
             }
         }
 
