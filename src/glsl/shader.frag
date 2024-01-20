@@ -575,9 +575,9 @@ vec3 raytrace(Ray ray) {
             float r = rand(vec2(seed, m.specular_weight) + hit.r.point.xy);
             if (r < specular_prob) {
                 is_specular = true;
-                weight_delta = m.specular / specular_prob;
+                weight_delta = m.specular / (2.0 * specular_prob);
             } else {
-                weight_delta = object_color / (1.0 - specular_prob);
+                weight_delta = object_color / (2.0 * (1.0 - specular_prob));
             }
         }
         if (!is_specular) {
