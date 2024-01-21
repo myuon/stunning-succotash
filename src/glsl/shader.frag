@@ -469,9 +469,9 @@ void next_ray(HitInScene hit, float seed, inout Ray ray, bool is_specular) {
 struct HitOnLight {
     vec3 point;
     vec3 normal;
-    float area_prob;
     int index;
     vec3 emission;
+    float light_pdf;
 };
 
 Material get_random_light(float seed) {
@@ -514,7 +514,7 @@ bool sample_on_light(out HitOnLight hit, float seed) {
 
         hit.point = t.vertex + t.edge1 * u + t.edge2 * v;
         hit.normal = normalize(cross(t.edge1, t.edge2));
-        hit.area_prob = 2.0 / length(cross(t.edge1, t.edge2));
+        hit.light_pdf = 2.0 / length(cross(t.edge1, t.edge2));
         hit.index = t_index;
         hit.emission = material.emission;
     } else if (material.shape == TSphere) {
@@ -523,7 +523,7 @@ bool sample_on_light(out HitOnLight hit, float seed) {
         vec3 p = randOnHemisphere(vec3(0.0, 1.0, 0.0), seed);
         hit.point = s.center + p * s.radius;
         hit.normal = normalize(p);
-        hit.area_prob = 1.0 / (4.0 * PI * s.radius * s.radius);
+        hit.light_pdf = 1.0 / (4.0 * PI * s.radius * s.radius);
         hit.index = material.t_index_min;
         hit.emission = material.emission;
     } else {
@@ -575,12 +575,15 @@ vec3 raytrace(Ray ray) {
             return orienting_normal + vec3(0.25);
         }
 
-        if (is_prev_perfect_specular) {
-            color += m.emission * weight;
-        }
-
         vec3 weight_delta = object_color;
         float seed = float(iterations) + float(count) + rand(hit.r.point.xy);
+
+        float dir_pdf = abs(dot(orienting_normal, ray.direction)) / PI;
+
+        HitOnLight hit_on_light;
+        if (!sample_on_light(hit_on_light, seed)) {
+            return color;
+        }
 
         bool is_specular = false;
         if (m.specular_weight > 0.0) {
@@ -589,24 +592,35 @@ vec3 raytrace(Ray ray) {
             if (r < specular_prob) {
                 is_specular = true;
                 weight_delta = m.specular / (2.0 * specular_prob);
+                dir_pdf *= 1.0 / specular_prob;
             } else {
                 weight_delta = object_color / (2.0 * (1.0 - specular_prob));
+                dir_pdf *= 1.0 / (1.0 - specular_prob);
             }
         }
-        if (!is_specular) {
-            HitOnLight hit_on_light;
-            if (!sample_on_light(hit_on_light, seed)) {
-                return color;
-            }
 
-            Ray shadow_ray = Ray(hit.r.point, normalize(hit_on_light.point - hit.r.point));
+        // NEE
+        Ray shadow_ray = Ray(hit.r.point, normalize(hit_on_light.point - hit.r.point));
+        HitInScene shadow_ray_hit = intersect(shadow_ray);
 
-            HitInScene shadow_ray_hit = intersect(shadow_ray);
+        if (shadow_ray_hit.index == hit_on_light.index) {
+            float dist_squared = pow(length(hit_on_light.point - hit.r.point), 2.0);
+            float bsdf_pdf = dir_pdf * abs(dot(hit_on_light.normal, shadow_ray.direction)) / dist_squared;
+            float light_pdf_squared = pow(hit_on_light.light_pdf, 2.0);
+            float mis_weight = light_pdf_squared / (light_pdf_squared + pow(bsdf_pdf, 2.0));
 
-            if (shadow_ray_hit.index == hit_on_light.index) {
-                float g = abs(dot(hit_on_light.normal, shadow_ray.direction)) * abs(dot(shadow_ray.direction, hit.r.normal)) / pow(length(hit_on_light.point - hit.r.point), 2.0);
-                color += hit_on_light.emission * weight * weight_delta * g / hit_on_light.area_prob;
-            }
+            float g = abs(dot(hit_on_light.normal, shadow_ray.direction)) * abs(dot(shadow_ray.direction, hit.r.normal)) / dist_squared;
+            color += hit_on_light.emission * weight * weight_delta * mis_weight * g / hit_on_light.light_pdf;
+        }
+
+        if (m.emission.x > 0.0 || m.emission.y > 0.0 || m.emission.z > 0.0) {
+            float dist_squared = pow(length(ray.origin - hit.r.point), 2.0);
+            float bsdf_pdf = dir_pdf;
+            float light_pdf = hit_on_light.light_pdf * dist_squared / abs(dot(hit.r.normal, shadow_ray.direction));
+            float bsdf_pdf_squared = pow(bsdf_pdf, 2.0);
+            float mis_weight = bsdf_pdf_squared / (bsdf_pdf_squared + pow(light_pdf, 2.0));
+
+            color += m.emission * weight * mis_weight;
         }
 
         float russian_roulette_threshold = 0.5;
