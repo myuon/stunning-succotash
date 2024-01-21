@@ -578,7 +578,7 @@ vec3 raytrace(Ray ray) {
         vec3 weight_delta = object_color;
         float seed = float(iterations) + float(count) + rand(hit.r.point.xy);
 
-        float dir_pdf = abs(dot(orienting_normal, ray.direction)) / PI;
+        float dir_pdf = 1.0 / (4.0 * PI);
 
         HitOnLight hit_on_light;
         if (!sample_on_light(hit_on_light, seed)) {
@@ -592,10 +592,9 @@ vec3 raytrace(Ray ray) {
             if (r < specular_prob) {
                 is_specular = true;
                 weight_delta = m.specular / (2.0 * specular_prob);
-                dir_pdf *= 1.0 / specular_prob;
+                dir_pdf = 1e10; // ?
             } else {
                 weight_delta = object_color / (2.0 * (1.0 - specular_prob));
-                dir_pdf *= 1.0 / (1.0 - specular_prob);
             }
         }
 

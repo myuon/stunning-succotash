@@ -566,7 +566,7 @@ const loadScene = async (
             0.0, 0.0, 0.0,
           ],
           specular: [1.0, 1.0, 1.0],
-          specularWeight: (shape.bsdf?.alpha ?? 0.0) * 1.0, // FIXME: alpha is not the same as specularWeight
+          specularWeight: (shape.bsdf?.alpha ?? 0.0) * 100.0, // FIXME: alpha is not the same as specularWeight
           aabb,
           index: triangles.length - 12,
           length: 12,
